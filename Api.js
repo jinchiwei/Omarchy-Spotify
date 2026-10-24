@@ -680,14 +680,6 @@ function preferredPlaybackDevice(devices, selectedId, explicitSelection, current
       if (String(values[i].id || "") === key && values[i].restricted !== true)
         return values[i]
   }
-  var savedId = String(rememberedId || "")
-  var savedName = String(rememberedName || "")
-  for (var remembered = 0; remembered < values.length; remembered++) {
-    var candidate = values[remembered]
-    if (candidate.restricted === true) continue
-    if ((savedId && String(candidate.id || "") === savedId)
-        || (savedName && String(candidate.name || "") === savedName)) return candidate
-  }
   var current = currentDevice || null
   if (current && current.active === true) {
     for (var j = 0; j < values.length; j++)
@@ -698,6 +690,14 @@ function preferredPlaybackDevice(devices, selectedId, explicitSelection, current
   for (var k = 0; k < values.length; k++)
     if (values[k].active === true)
       return values[k]
+  var savedId = String(rememberedId || "")
+  var savedName = String(rememberedName || "")
+  for (var remembered = 0; remembered < values.length; remembered++) {
+    var candidate = values[remembered]
+    if (candidate.restricted === true) continue
+    if ((savedId && String(candidate.id || "") === savedId)
+        || (savedName && String(candidate.name || "") === savedName)) return candidate
+  }
   for (var l = 0; l < values.length; l++)
     if (values[l].local === true && values[l].restricted !== true && values[l].id)
       return values[l]

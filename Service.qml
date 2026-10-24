@@ -101,7 +101,10 @@ Item {
   readonly property alias backend: backendClient
   readonly property bool externalPlayback: settings.playbackEngine === "Spotify Connect"
   readonly property bool usingSoloist: externalPlayback && settings.soloistLocalControl === "On"
-    && soloistClient.ready && soloistTargetSelected()
+    && soloistClient.ready && soloistClient.state.is_active === true && soloistTargetSelected()
+  onUsingSoloistChanged: {
+    if (!usingSoloist && authManager.loggedIn) loadPlaybackState()
+  }
   readonly property bool accountConnected: authManager.loggedIn
   readonly property bool sessionPending: !authManager.sessionChecked
   readonly property bool fullyConnected: authManager.loggedIn
@@ -2760,7 +2763,7 @@ Item {
       next, selectedDeviceId, selectedDeviceExplicit, current,
       settings.preferredDeviceId, settings.preferredDeviceName)
     if (selectedDeviceExplicit
-        && (!preferred || preferred.id !== selectedDeviceId))
+        && (!preferred || preferred.id !== selectedDeviceId || preferred.active))
       selectedDeviceExplicit = false
     selectedDeviceId = preferred ? preferred.id : ""
     devicesLoaded = true
@@ -3164,6 +3167,15 @@ Item {
     localActivationRequested = true
     deviceProbeAttempts = 0
     noteActivity()
+
+    // Refresh receiver IDs before catalog playback; a phone may have taken over
+    // since the panel last loaded. Explicit device choices still take priority.
+    if (externalPlayback) {
+      loadPlaybackState(function() {
+        root.loadDevices(function() { root.dispatchPendingPlayback(playbackSerial) })
+      })
+      return
+    }
 
     // Opening the panel refreshes current playback asynchronously. Wait for
     // that in-flight result before choosing the local fallback, otherwise a

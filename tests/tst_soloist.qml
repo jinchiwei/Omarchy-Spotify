@@ -5,11 +5,17 @@ TestCase {
   name: "SoloistIntegration"
   function test_rememberedInactiveDeviceSurvivesReopen() {
     var rows = [{id:"solo",name:"Omarchy Soloist",active:false},
-      {id:"phone",name:"Phone",active:true}]
+      {id:"phone",name:"Phone",active:false}]
     compare(Api.preferredPlaybackDevice(rows,"",false,null,"solo","Omarchy Soloist").id,"solo")
     compare(Api.preferredPlaybackDevice(rows,"phone",true,null,"solo","Omarchy Soloist").id,"phone")
     rows[0].id="new-id"
     compare(Api.preferredPlaybackDevice(rows,"",false,null,"old-id","Omarchy Soloist").id,"new-id")
+  }
+  function test_activePhoneTakesPrecedenceOverRememberedLaptop() {
+    var rows = [{id:"solo",name:"Omarchy Soloist",active:false},
+      {id:"phone",name:"Phone",active:true}]
+    compare(Api.preferredPlaybackDevice(rows,"",false,rows[1],"solo","Omarchy Soloist").id,"phone")
+    compare(Api.preferredPlaybackDevice(rows,"solo",true,rows[1],"solo","Omarchy Soloist").id,"solo")
   }
   function test_localControlsDoNotNeedCloudRequests() {
     compare(Api.soloistControlArgs("PUT","/me/player/repeat",{state:"track"}),["repeat","track"])

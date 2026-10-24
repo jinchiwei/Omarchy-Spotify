@@ -24,6 +24,7 @@ ShellRoot {
     xhr.readyState = XMLHttpRequest.DONE; xhr.onreadystatechange()
   }
   Plugin.Service { id: spotifyService }
+  Plugin.SoloistClient { id: takeoverProbe }
   Plugin.Panel { id: panel; service: spotifyService; width: 1280; height: 800 }
   Plugin.BarWidget { id: widget }
   Timer {
@@ -139,6 +140,29 @@ ShellRoot {
       scopedShell.barConfig = {layout:{left:[],center:[],right:[]}}
       if (spotifyService.lyricsPluginAvailability !== "disabled")
         throw new Error("Lyrics widget outside the bar incorrectly reported ready")
+      takeoverProbe.handleLine('{"type":"playback_state","is_active":true,"status":"playing"}')
+      takeoverProbe.handleLine('{"type":"active_changed","is_active":false}')
+      if (takeoverProbe.state.is_active !== false)
+        throw new Error("Phone takeover did not clear the local receiver active flag")
+      spotifyService.api.cancelAll()
+      pageRequests = []
+      spotifyService.remotePlaybackLoading = false
+      spotifyService.devicesLoading = false
+      spotifyService.selectedDeviceExplicit = false
+      spotifyService.selectedDeviceId = "stale-laptop"
+      spotifyService.devices = [{id:"stale-laptop",name:"Omarchy Soloist",active:false}]
+      var freshTrack = {id:"fresh",uri:"spotify:track:fresh",type:"track",name:"Fresh",duration_ms:1000,artists:[]}
+      spotifyService.playItem(freshTrack, [freshTrack], "", "", null)
+      if (pageRequests.length !== 1 || pageRequests[0].url.indexOf("/me/player?") < 0)
+        throw new Error("Catalog playback used a cached receiver before refreshing playback")
+      completePage(200, {device:{id:"phone",name:"Phone",is_active:true,volume_percent:50,supports_volume:true},
+        item:freshTrack,progress_ms:0,is_playing:true})
+      if (pageRequests[pageRequests.length-1].url.indexOf("/me/player/devices") < 0)
+        throw new Error("Catalog playback did not refresh receiver IDs")
+      completePage(200, {devices:[{id:"phone",name:"Phone",is_active:true,volume_percent:50,supports_volume:true}]})
+      if (!pageRequests.some(function(xhr) { return xhr.url.indexOf("/me/player/play?device_id=phone") >= 0 }))
+        throw new Error("Catalog playback did not target the active phone")
+      spotifyService.api.cancelAll()
       console.log("APP_SMOKE_PASS")
       Qt.quit()
     }

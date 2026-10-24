@@ -23,7 +23,8 @@ Item {
       return
     }
     if (["playback_state", "track_changed", "playback_changed", "context_changed",
-         "options_changed", "volume_changed", "position_sync"].indexOf(event.type) < 0) return
+         "options_changed", "volume_changed", "position_sync"].indexOf(event.type) < 0
+        && typeof event.is_active !== "boolean") return
     state = Api.mergeSoloistState(state, event)
     stateReceived(state)
   }
