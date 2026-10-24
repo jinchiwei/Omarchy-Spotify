@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Effects
 import Quickshell
 import qs.Commons
 import qs.Ui
@@ -3374,38 +3375,55 @@ Item {
               height: visible ? Style.space(42) : 0
               spacing: Style.space(9)
 
-              OpticalGlyph {
-                width: root.compactWidth ? parent.width : Style.space(18)
+              Item {
+                id: profileAvatar
+                width: root.compactWidth ? parent.width : Style.space(32)
                 height: parent.height
-                text: ""
-                color: root.accent
-                fontFamily: root.fontFamily
-                fontSize: Style.font.iconLarge
+                RetryImage {
+                  id: profileImage
+                  width: Style.space(32)
+                  height: width
+                  anchors.centerIn: parent
+                  requestedSource: root.service ? root.service.currentUserImage : ""
+                  active: sidebar.visible && root.service && root.service.accountConnected
+                  sourceSize.width: 96
+                  sourceSize.height: 96
+                  fillMode: Image.PreserveAspectCrop
+                  layer.enabled: true
+                  layer.effect: MultiEffect {
+                    maskEnabled: true
+                    maskSource: avatarMask
+                  }
+                }
+                Rectangle {
+                  id: avatarMask
+                  width: Style.space(32)
+                  height: width
+                  radius: width / 2
+                  color: "white"
+                  visible: false
+                  layer.enabled: true
+                }
+                OpticalGlyph {
+                  anchors.fill: parent
+                  visible: profileImage.status !== Image.Ready
+                  text: ""
+                  color: root.service ? (root.service.settings.titleColor || root.accent) : root.accent
+                  fontFamily: root.fontFamily
+                  fontSize: Style.font.iconLarge
+                }
               }
-
-              Column {
+              Text {
                 visible: !root.compactWidth
-                width: Math.max(40, parent.width - Style.space(38))
+                width: Math.max(20, parent.width - profileAvatar.width - parent.spacing)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 0
-
-                Text {
-                  width: parent.width
-                  text: "Music"
-                  color: root.foreground
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.subtitle
-                  font.bold: true
-                  elide: Text.ElideRight
-                }
-                Text {
-                  width: parent.width
-                  text: "for Spotify"
-                  color: root.muted
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.caption
-                  elide: Text.ElideRight
-                }
+                text: root.service && root.service.currentUserName
+                  ? root.service.currentUserName : "Spotify"
+                color: root.service ? (root.service.settings.titleColor || root.accent) : root.accent
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.subtitle
+                font.bold: true
+                elide: Text.ElideRight
               }
             }
 
@@ -5718,6 +5736,9 @@ Item {
             && root.service.playlistOwned(root.service.selectedPlaylist)
           reorderBusy: root.service && root.service.playlistActionBusy
           loading: root.service && root.service.playlistItemsLoading
+          loadMoreText: "Load remaining songs"
+          loadingText: root.service && root.service.playlistLoadAll
+            ? "Loading remaining songs… (" + root.service.playlistItems.length + ")" : "Loading…"
           hasMore: root.service && root.service.playlistItemsNext !== ""
           emptyMessage: root.service && root.service.selectedPlaylist
             ? (root.service.playlistItemsEmptyMessage

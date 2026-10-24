@@ -47,7 +47,10 @@
       "showArtwork": "On",
       "clientId": "",
       "playbackEngine": "Built-in",
-      "titleColor": ""
+      "titleColor": "",
+      "preferredDeviceId": "",
+      "preferredDeviceName": "",
+      "soloistLocalControl": "Off"
     },
     "schema": [
       {
@@ -238,6 +241,29 @@
         "label": "Now playing title color",
         "defaultValue": "",
         "description": "Optional #RRGGBB color for the song title in both players. Empty follows the theme accent."
+      },
+      {
+        "key": "preferredDeviceId",
+        "type": "string",
+        "label": "Remembered playback device ID",
+        "defaultValue": ""
+      },
+      {
+        "key": "preferredDeviceName",
+        "type": "string",
+        "label": "Remembered playback device name",
+        "defaultValue": ""
+      },
+      {
+        "key": "soloistLocalControl",
+        "type": "enum",
+        "label": "Control local Soloist directly",
+        "options": [
+          "Off",
+          "On"
+        ],
+        "defaultValue": "Off",
+        "description": "Use the local soloist CLI and live event stream for immediate transport controls and position updates. Requires Soloist on PATH with its loopback WebSocket API enabled."
       }
     ]
   }

@@ -52,7 +52,10 @@ Item {
     audioQuality: "320 kbps",
     clientId: "",
     playbackEngine: "Built-in",
-    titleColor: ""
+    titleColor: "",
+    preferredDeviceId: "",
+    preferredDeviceName: "",
+    soloistLocalControl: "Off"
   })
   property var settings: Api.shallowCopy(defaultSettingValues)
 
@@ -96,6 +99,8 @@ Item {
   readonly property alias daemon: daemonManager
   readonly property alias backend: backendClient
   readonly property bool externalPlayback: settings.playbackEngine === "Spotify Connect"
+  readonly property bool usingSoloist: externalPlayback && settings.soloistLocalControl === "On"
+    && soloistClient.ready && soloistTargetSelected()
   readonly property bool accountConnected: authManager.loggedIn
   readonly property bool sessionPending: !authManager.sessionChecked
   readonly property bool fullyConnected: authManager.loggedIn
@@ -298,12 +303,14 @@ Item {
   property string savedAudiobooksNext: ""
   property var playlistItems: []
   property string playlistItemsNext: ""
+  property bool playlistLoadAll: false
   property string playlistItemsError: ""
   property int playlistItemsStatus: 0
   property int playlistItemsSerial: 0
   property int playlistRestoreTargetCount: 0
   property var selectedPlaylist: null
   property string currentUserId: ""
+  property string currentUserImage: ""
   property string currentUserName: ""
   readonly property string playlistItemsEmptyMessage: Api.playlistItemsEmptyMessage(
     selectedPlaylist, playlistItems.length, playlistItemsError,
@@ -500,11 +507,14 @@ Item {
     var keys = ["deviceName", "idleShutdownMinutes", "showMiniPlayer",
       "showVinylRecord", "shortcutPlayer", "shortcutHints", "showLyrics", "showArtwork", "showTrackTitle", "showArtistName",
       "showPausedTrack", "scrollBarText", "scrollSpeed", "maxBarTextWidth",
-      "fixedBarWidth", "audioQuality", "clientId", "playbackEngine", "titleColor"]
+      "fixedBarWidth", "audioQuality", "clientId", "playbackEngine", "titleColor", "preferredDeviceId", "preferredDeviceName", "soloistLocalControl"]
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i]
       if (source[key] !== undefined) next[key] = source[key]
     }
+    next.preferredDeviceId = String(next.preferredDeviceId || "").trim()
+    next.preferredDeviceName = String(next.preferredDeviceName || "").trim()
+    next.soloistLocalControl = next.soloistLocalControl === "On" ? "On" : "Off"
     next.titleColor = /^#[0-9a-f]{6}$/i.test(String(next.titleColor || ""))
       ? String(next.titleColor) : ""
     next.playbackEngine = next.playbackEngine === "Spotify Connect" ? "Spotify Connect" : "Built-in"
@@ -1102,6 +1112,7 @@ Item {
   }
 
   function volumeFlushTarget() {
+    if (usingSoloist) return "local"
     if (sonosControlAvailable && sonosControlDevice && sonosControlDevice.id)
       return "sonos"
     return useRemotePlayback ? "remote" : "local"
@@ -1110,6 +1121,7 @@ Item {
   // Returns false when the backend could not take the command, so the caller
   // keeps it queued and retries. Only Sonos rejects this way.
   function sendVolumeCommand(sliderValue) {
+    if (sendSoloistControl("PUT", "/me/player/volume", {volume_percent: Math.round(sliderValue * 100)})) return true
     var localVolume = !useRemotePlayback && hasLocalPlayer
       && activePlayer.volumeSupported
     var normalized = localVolume
@@ -1208,7 +1220,33 @@ Item {
     }
   }
 
+  function soloistTargetSelected() {
+    var target = chooseDevice()
+    return target ? target.name === soloistClient.deviceName
+      : settings.preferredDeviceName === soloistClient.deviceName
+  }
+  function applySoloistState() {
+    if (!usingSoloist) return
+    var target = chooseDevice()
+    applyPlaybackState(Api.soloistPlaybackPayload(soloistClient.state,
+      target ? target.id : settings.preferredDeviceId, soloistClient.deviceName))
+  }
+  function sendSoloistControl(method, path, query) {
+    if (!usingSoloist) return false
+    var args = Api.soloistControlArgs(method, path, query)
+    if (!args) return false
+    return soloistClient.send(args, function(ok, error) {
+      if (ok) root.succeed("")
+      else root.fail(error)
+    })
+  }
+
   function loadPlaybackState(callback, reportError) {
+    if (usingSoloist) {
+      applySoloistState()
+      if (typeof callback === "function") callback(true)
+      return
+    }
     if (typeof callback === "function") {
       var waiters = remotePlaybackWaiters.slice()
       waiters.push(callback)
@@ -1224,7 +1262,7 @@ Item {
           root.finishRemotePlaybackWaiters(false)
           return
         }
-        if (!error) root.applyPlaybackState(payload)
+        if (!error) { if (root.usingSoloist) root.applySoloistState(); else root.applyPlaybackState(payload) }
         else if (reportError === true) root.fail(error)
         if (!error && !root.hasMedia) root.loadResumeCandidate()
         root.finishRemotePlaybackWaiters(!error)
@@ -1289,6 +1327,7 @@ Item {
       if (expected !== root.dataSerial || error || !payload) return
       root.currentUserId = String(payload.id || "")
       root.currentUserName = String(payload.display_name || "")
+      root.currentUserImage = Api.imageFor(payload.images || [], 96)
     })
   }
 
@@ -1733,6 +1772,7 @@ Item {
     if (!playlist || !playlist.id) return
     succeed("")
     playlistItemsSerial++
+    playlistLoadAll = false
     playlistItemsLoading = false
     playlistRestoreTargetCount = Api.normalizedPlaylistRestoreCount(
       restoredItemCount)
@@ -1761,6 +1801,7 @@ Item {
         root.playlistItemsLoading = false
         if (error) {
           root.playlistRestoreTargetCount = 0
+          root.playlistLoadAll = false
           var hidden = Api.playlistItemsHiddenByApi(status,
             root.playlistOwned(root.selectedPlaylist),
             root.selectedPlaylist.collaborative === true,
@@ -1793,14 +1834,24 @@ Item {
           append, page.next)
         root.playlistItems = playlistPage.items
         root.playlistItemsNext = playlistPage.next
-        if (Api.playlistRestoreShouldContinue(root.playlistItems.length,
-            root.playlistRestoreTargetCount, root.playlistItemsNext))
+        if (root.playlistLoadAll && root.playlistItems.length >= Api.PLAYLIST_RESTORE_ITEM_LIMIT)
+          root.playlistLoadAll = false
+        if (root.playlistLoadAll && root.playlistItemsNext) {
+          root.statusMessage = "Loaded " + root.playlistItems.length + " songs…"
           root.loadPlaylistItems(true)
-        else root.playlistRestoreTargetCount = 0
-      })
+        } else if (Api.playlistRestoreShouldContinue(root.playlistItems.length,
+            root.playlistRestoreTargetCount, root.playlistItemsNext)) root.loadPlaylistItems(true)
+        else {
+          root.playlistRestoreTargetCount = 0
+          if (root.playlistLoadAll) root.succeed("Loaded " + root.playlistItems.length + " songs")
+          root.playlistLoadAll = false
+        }
+      }, {retryRateLimit: !root.playlistLoadAll})
   }
 
   function loadMorePlaylistItems() {
+    if (playlistItemsLoading || !playlistItemsNext) return
+    playlistLoadAll = true
     loadPlaylistItems(true)
   }
 
@@ -2665,7 +2716,8 @@ Item {
       }
     }
     var preferred = explicitActiveReceiver || Api.preferredPlaybackDevice(
-      next, selectedDeviceId, selectedDeviceExplicit, current)
+      next, selectedDeviceId, selectedDeviceExplicit, current,
+      settings.preferredDeviceId, settings.preferredDeviceName)
     if (selectedDeviceExplicit
         && (!preferred || preferred.id !== selectedDeviceId))
       selectedDeviceExplicit = false
@@ -2781,6 +2833,7 @@ Item {
   }
   IpcHandler {
     target: "quickshell.spotify.player"
+    function playbackEngineStatus(): string { return root.usingSoloist ? "soloist-local" : String(root.settings.playbackEngine) }
     function configuredPlayer(): string { return root.shortcutPlayer }
     function togglePlayer(): string { return root.invokePlayerShortcut("toggleConfiguredPlayerShortcut") }
     function toggleMiniPlayer(): string { return root.invokePlayerShortcut("toggleMiniPlayerShortcut") }
@@ -2825,7 +2878,7 @@ Item {
 
   function chooseDevice() {
     return Api.preferredPlaybackDevice(devices, selectedDeviceId,
-      selectedDeviceExplicit, remoteDevice)
+      selectedDeviceExplicit, remoteDevice, settings.preferredDeviceId, settings.preferredDeviceName)
   }
 
   // An active Spotify Connect receiver already represents the user's current
@@ -2869,6 +2922,7 @@ Item {
     if (!device.id || (device.restricted && !device.activationRequired)) return
     selectedDeviceId = device.id
     selectedDeviceExplicit = true
+    persistSettings({ preferredDeviceId: device.id, preferredDeviceName: device.name })
     noteActivity()
     if (device.activationRequired) {
       if (deviceActivationBusy) return
@@ -3371,6 +3425,7 @@ Item {
   }
 
   function remotePlayerAction(method, path, query) {
+    if (sendSoloistControl(method, path, query)) return
     apiAction(method, path, query, null, "",
       function(ok) { if (ok) root.loadPlaybackState() })
   }
@@ -3379,6 +3434,7 @@ Item {
     var value = Math.max(0, Math.min(lengthSeconds || Number.MAX_VALUE,
       Number(seconds) || 0))
     noteActivity()
+    if (sendSoloistControl("PUT", "/me/player/seek", {position_ms:Math.round(value * 1000)})) return
     var remoteSerial = useRemotePlayback ? beginRemoteSeek(value) : 0
     if (sendSonosControl("seek", String(Math.round(value)))) return
     if (!useRemotePlayback && hasLocalPlayer
@@ -3660,6 +3716,7 @@ Item {
     playlistRestoreTargetCount = 0
     selectedPlaylist = null
     currentUserId = ""
+    currentUserImage = ""
     currentUserName = ""
     queue = []
     queueLoaded = false
@@ -3765,7 +3822,9 @@ Item {
   onCurrentTrackItemUriChanged: syncCurrentTrackSaved(false)
   onLyricsPluginAvailabilityChanged: resumeLyricsInstallIntent()
   onShellChanged: settingsSync.restart()
+  onActiveViewChanged: playlistLoadAll = false
   onUiVisibleChanged: {
+    if (!uiVisible) playlistLoadAll = false
     if (uiVisible) {
       ensureVisibleLocalReceiver()
       syncCurrentTrackSaved(true)
@@ -4053,7 +4112,7 @@ Item {
     interval: Api.remotePlaybackPollInterval(root.uiVisible,
       root.useRemotePlayback, root.hasLocalPlayer)
     repeat: true
-    running: Api.remotePlaybackPollShouldRun(root.auth.loggedIn,
+    running: !root.usingSoloist && Api.remotePlaybackPollShouldRun(root.auth.loggedIn,
       root.remotePlaybackLoading, root.uiVisible, root.useRemotePlayback,
       root.playing)
     onTriggered: root.loadPlaybackState()
@@ -4156,6 +4215,13 @@ Item {
     onTriggered: if ((root.sleepMode === "context" || root.sleepMode === "track")
         && root.playbackState === MprisPlaybackState.Stopped)
       root.finishSleepTimer()
+  }
+
+  SoloistClient {
+    id: soloistClient
+    wanted: root.externalPlayback && root.settings.soloistLocalControl === "On"
+    onStateReceived: root.applySoloistState()
+    onReadyChanged: if (ready) root.applySoloistState()
   }
 
   AuthManager {

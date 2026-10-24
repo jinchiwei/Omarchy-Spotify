@@ -75,6 +75,8 @@ Item {
   signal contextRequested(var item, real sceneX, real sceneY, int index,
     var sourceItems, string contextUri, string playbackContextUri)
   signal reorderRequested(int sourceIndex, int destinationIndex)
+  property string loadMoreText: "Load more"
+  property string loadingText: "Loading…"
   signal loadMoreRequested()
   signal viewStateChanged(string filterText, string sortKey, real contentY)
 
@@ -513,7 +515,7 @@ Item {
       anchors.horizontalCenter: parent.horizontalCenter
       height: visible ? implicitHeight : 0
       visible: root.loading || root.hasMore
-      text: root.loading ? "Loading…" : "Load more"
+      text: root.loading ? root.loadingText : root.loadMoreText
       foreground: Color.foreground
       enabled: root.hasMore && !root.loading
       hasCursor: root.keyboardMoreSelected

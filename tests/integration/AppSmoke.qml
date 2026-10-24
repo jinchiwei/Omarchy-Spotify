@@ -6,6 +6,23 @@ ShellRoot {
   QtObject { id: scopedShell; property var barConfig: ({ layout: { left: [
     { id: "quickshell.spotify", playbackEngine: "Spotify Connect" }
   ] } }) }
+  property var pageRequests: []
+  QtObject { id: pageAuth
+    function withAccessToken(callback) { callback("mock-token", "") }
+    function invalidateAccessToken() {}
+  }
+  function pageXhr() {
+    var xhr = {readyState:0, status:0, responseText:"", onreadystatechange:null,
+      open:function() {}, setRequestHeader:function() {}, send:function() {},
+      abort:function() {}, getResponseHeader:function() { return "1" }}
+    pageRequests = pageRequests.concat([xhr])
+    return xhr
+  }
+  function completePage(status, payload) {
+    var xhr = pageRequests[pageRequests.length - 1]
+    xhr.status = status; xhr.responseText = JSON.stringify(payload)
+    xhr.readyState = XMLHttpRequest.DONE; xhr.onreadystatechange()
+  }
   Plugin.Service { id: spotifyService }
   Plugin.Panel { id: panel; service: spotifyService; width: 1280; height: 800 }
   Plugin.BarWidget { id: widget }
@@ -43,6 +60,35 @@ ShellRoot {
       spotifyService.dispatchPendingPlayback(7)
       if (spotifyService.lastError.indexOf("Spotify Connect") < 0)
         throw new Error("Missing external device did not give an actionable error")
+      spotifyService.api.cancelAll()
+      spotifyService.api.auth = pageAuth
+      spotifyService.api.xhrFactory = pageXhr
+      spotifyService.selectedPlaylist = {id:"test", name:"Test"}
+      spotifyService.playlistItems = []
+      spotifyService.playlistItemsNext = "/playlists/test/items?offset=0"
+      spotifyService.loadMorePlaylistItems()
+      if (pageRequests.length !== 1) throw new Error("First playlist request missing")
+      var row = {track:{id:"a",uri:"spotify:track:a",name:"A",duration_ms:1000,artists:[]}}
+      completePage(200,{items:[row],offset:0,next:"https://api.spotify.com/v1/playlists/test/items?offset=1"})
+      if (pageRequests.length !== 2) throw new Error("One click did not fetch the next playlist page")
+      completePage(200,{items:[row],offset:1,next:null})
+      if (spotifyService.playlistItems.length !== 2 || spotifyService.playlistLoadAll)
+        throw new Error("Playlist batch lost duplicate entries or did not finish")
+      spotifyService.playlistItemsNext = "/playlists/test/items?offset=2"
+      spotifyService.loadMorePlaylistItems()
+      var beforeLimit = pageRequests.length
+      completePage(429,{error:{message:"Rate limited"}})
+      if (spotifyService.playlistLoadAll || pageRequests.length !== beforeLimit)
+        throw new Error("Playlist batch did not stop at rate limiting")
+      spotifyService.api.rateLimitedUntil = 0
+      spotifyService.activeView = "playlists"
+      spotifyService.playlistItemsNext = "/playlists/test/items?offset=2"
+      spotifyService.loadMorePlaylistItems()
+      spotifyService.activeView = "search"
+      var beforeLeave = pageRequests.length
+      completePage(200,{items:[row],offset:2,next:"https://api.spotify.com/v1/playlists/test/items?offset=3"})
+      if (spotifyService.playlistLoadAll || pageRequests.length !== beforeLeave)
+        throw new Error("Playlist batch kept loading after leaving the view")
       console.log("APP_SMOKE_PASS")
       Qt.quit()
     }

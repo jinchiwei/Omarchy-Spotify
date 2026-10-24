@@ -288,3 +288,43 @@ omarchy bar set quickshell.spotify titleColor '#00E8C6'
 
 Set `titleColor` to an empty string to follow the theme again. These are local
 settings; do not hardcode your personal client ID, key, or sessions in the plugin.
+
+### Responsive Soloist controls and remembered devices
+
+For the local Soloist receiver, enable its live event stream and local transport
+controls instead of sending every button through the Web API:
+
+```bash
+omarchy bar set quickshell.spotify soloistLocalControl On
+omarchy bar set quickshell.spotify preferredDeviceName 'Omarchy Soloist'
+omarchy restart shell
+```
+
+`soloist` must be on PATH and already running with its loopback WebSocket API
+(`--ws 127.0.0.1:0` in the service example). One local `soloist ctl trace` connection
+keeps position, repeat, shuffle, volume, and track metadata current. Controls use
+argument arrays through `soloist ctl`; no key or refresh token is sent to this
+local interface. Cloud catalog/library access remains subject to Spotify's API
+latency and quota. Remote devices keep using the normal Spotify API controls.
+
+The device picker remembers the selected device ID and name across player and
+shell restarts. If its ID changes, the remembered name provides a fallback.
+Selecting a different device updates this preference. To remove the preference,
+set `preferredDeviceId` and `preferredDeviceName` to empty strings.
+
+Check the active path with:
+
+```bash
+omarchy shell quickshell.spotify.player playbackEngineStatus
+```
+
+`soloist-local` means transport and live state are local. The profile header uses
+the signed-in account's display name and avatar; profile data is never hardcoded.
+
+### Loading a complete playlist
+
+**Load remaining songs** retrieves the rest sequentially, with a loaded count.
+No parallel page burst is used. Switching playlists, leaving the playlist view,
+closing the player, a page error, or a rate-limit response stops the batch. Already
+loaded songs are kept, including intentional duplicates. The existing 10,000-item
+safety limit remains. Reopen the playlist and click again to continue as needed.

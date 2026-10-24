@@ -672,13 +672,21 @@ function idleMediaText(current, item, key, fallback) {
 // another device in this app. The local spotifyd player is only the fallback
 // when Spotify has no active device. Keeping a restricted device here avoids
 // silently moving playback locally; Spotify can report the unsupported action.
-function preferredPlaybackDevice(devices, selectedId, explicitSelection, currentDevice) {
+function preferredPlaybackDevice(devices, selectedId, explicitSelection, currentDevice, rememberedId, rememberedName) {
   var values = Array.isArray(devices) ? devices : []
   var key = String(selectedId || "")
   if (explicitSelection && key) {
     for (var i = 0; i < values.length; i++)
       if (String(values[i].id || "") === key && values[i].restricted !== true)
         return values[i]
+  }
+  var savedId = String(rememberedId || "")
+  var savedName = String(rememberedName || "")
+  for (var remembered = 0; remembered < values.length; remembered++) {
+    var candidate = values[remembered]
+    if (candidate.restricted === true) continue
+    if ((savedId && String(candidate.id || "") === savedId)
+        || (savedName && String(candidate.name || "") === savedName)) return candidate
   }
   var current = currentDevice || null
   if (current && current.active === true) {
@@ -2279,4 +2287,66 @@ function mergeUnique(existing, incoming) {
     result.push(values[i])
   }
   return result
+}
+
+
+// Local Soloist CLI uses argument arrays, never shell interpolation.
+function soloistControlArgs(method, path, query) {
+  var q = query || {}
+  if (path === "/me/player/play") return ["play"]
+  if (path === "/me/player/pause") return ["pause"]
+  if (path === "/me/player/next") return ["next"]
+  if (path === "/me/player/previous") return ["prev"]
+  if (path === "/me/player/repeat" && ["off", "track", "context"].indexOf(q.state) >= 0)
+    return ["repeat", q.state]
+  if (path === "/me/player/shuffle") return ["shuffle", q.state === "true" ? "on" : "off"]
+  if (path === "/me/player/seek") return ["seek", String(Math.max(0, Math.round(Number(q.position_ms) || 0)))]
+  if (path === "/me/player/volume") return ["volume", String(Math.max(0, Math.min(100, Math.round(Number(q.volume_percent) || 0))))]
+  return null
+}
+
+function parseSoloistTraceLine(line) {
+  var text = String(line || "")
+  var start = text.indexOf("{")
+  return start < 0 ? null : parseJson(text.slice(start), null)
+}
+
+function mergeSoloistState(previous, event) {
+  if (!event || !event.type) return previous || {}
+  if (event.type === "playback_state") return shallowCopy(event)
+  var next = shallowCopy(previous || {})
+  var keys = ["status", "item", "context", "position", "volume", "options", "is_active", "available_actions"]
+  for (var i = 0; i < keys.length; i++)
+    if (event[keys[i]] !== undefined) next[keys[i]] = event[keys[i]]
+  return next
+}
+
+function soloistPlaybackPayload(state, deviceId, deviceName) {
+  var raw = state || {}, entity = raw.item || {}, d = entity.decorations || {}
+  var parent = d.parent && d.parent.entity ? d.parent.entity : {}
+  var parentDecorations = parent.decorations || {}
+  var creators = Array.isArray(d.creators) ? d.creators : []
+  var artists = creators.map(function(value) {
+    var e = value.entity || {}, decoration = e.decorations || {}
+    return { uri: e.uri || "", id: String(e.uri || "").split(":").pop(),
+      name: decoration.identity ? decoration.identity.name : "" }
+  })
+  var covers = d.visual_identity ? d.visual_identity.cover || [] : []
+  var images = covers.map(function(value) {
+    var size = value.size === "small" ? 64 : (value.size === "default" ? 300 : 640)
+    return {url:value.url, width:size, height:size}
+  })
+  var item = entity.uri ? {uri:entity.uri, id:String(entity.uri).split(":").pop(),
+    type:entity.entity_type || "track", name:d.identity ? d.identity.name : "",
+    duration_ms:d.playback ? d.playback.duration_ms : 0, artists:artists,
+    album:{name:parentDecorations.identity ? parentDecorations.identity.name : "", images:images}}
+    : null
+  return {is_playing:raw.status === "playing", item:item,
+    progress_ms:raw.position ? raw.position.position_ms : 0,
+    repeat_state:raw.options ? raw.options.repeat : "off",
+    shuffle_state:raw.options ? raw.options.shuffle === true : false,
+    context:{uri:raw.context ? raw.context.uri : "", type:raw.context ? raw.context.entity_type : ""},
+    device:{id:String(deviceId || ""), name:String(deviceName || "Omarchy Soloist"),
+      type:"Computer", is_active:raw.is_active === true, is_restricted:false,
+      volume_percent:raw.volume === undefined ? 40 : raw.volume, supports_volume:true}}
 }
