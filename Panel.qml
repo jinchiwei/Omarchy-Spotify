@@ -993,7 +993,7 @@ Item {
     if (currentTab === "login") return []
     var actions = []
     if (service && service.currentTrackSaveAvailable) actions.push("like")
-    if (service && service.currentTrackItem) actions.push("context")
+    if (service && service.currentTrackItem) actions.push("playlist", "context")
     if (service && service.currentArtistContextAvailable) actions.push("artist")
     if (service && service.currentAlbumContextAvailable) actions.push("album")
     if (service && service.playbackControllable)
@@ -1257,6 +1257,7 @@ Item {
     else if (action === "refresh") refreshButton.clicked()
     else if (action === "close") requestClose()
     else if (action === "like" && service) service.toggleCurrentTrackSaved()
+    else if (action === "playlist" && service) openPlaylistPicker(service.currentTrackItem)
     else if (action === "context") openNowPlayingContext()
     else if (action === "artist") openCurrentArtist()
     else if (action === "album") openCurrentAlbum()
@@ -2192,6 +2193,7 @@ Item {
   function openPlaylistPicker(item) {
     if (!item || item.kind !== "item") return
     pendingPlaylistItem = item
+    if (service) service.loadSidebarPlaylists()
     playlistPicker.open()
   }
 
@@ -2660,7 +2662,8 @@ Item {
         visible: root.contextItem && !!root.contextItem.uri
           && root.contextItem.type !== "chapter"
         text: root.service && root.service.isSaved(root.contextItem)
-          ? "Remove from library" : "Save to library"
+          ? (root.contextItem && root.contextItem.type === "track" ? "Remove from Liked Songs" : "Remove from library")
+          : (root.contextItem && root.contextItem.type === "track" ? "Add to Liked Songs" : "Save to library")
         iconText: root.service && root.service.isSaved(root.contextItem) ? "󰓎" : "󰋑"
         onClicked: {
           mediaContextMenu.close()
@@ -2813,6 +2816,27 @@ Item {
       }
 
       PanelSeparator { width: parent.width; foreground: root.foreground }
+
+      Text {
+        width: parent.width
+        visible: root.service && (root.service.playlistsLoading
+          || (root.service.playlistsLoaded && !root.service.editablePlaylists().length))
+        text: root.service && root.service.playlistsLoading ? "Loading playlists…"
+          : "No editable playlists found. You can create one above."
+        color: root.muted
+        font.family: root.fontFamily
+        font.pixelSize: Style.font.bodySmall
+        wrapMode: Text.WordWrap
+      }
+
+      Button {
+        width: parent.width
+        visible: root.service && !!root.service.playlistsNext
+        text: "Load more playlists"
+        enabled: root.service && !root.service.playlistsLoading
+        foreground: root.foreground
+        onClicked: root.service.loadMorePlaylists()
+      }
 
       ListView {
         id: playlistPickerList
@@ -4136,7 +4160,7 @@ Item {
                   Row {
                     id: nowPlayingActions
                     visible: !root.extraNarrowWidth && (currentTrackLikeButton.visible
-                      || currentTrackMoreButton.visible
+                      || currentTrackPlaylistButton.visible || currentTrackMoreButton.visible
                     )
                     spacing: Style.space(1)
                     anchors.verticalCenter: parent.verticalCenter
@@ -4166,6 +4190,27 @@ Item {
                         if (on) root.setPanelCursor("footer", "like")
                       }
                       KeyHint { region: "footer"; action: "like" }
+                    }
+
+                    Button {
+                      id: currentTrackPlaylistButton
+                      objectName: "current-track-playlist"
+                      visible: root.service && !!root.service.currentTrackItem
+                      text: root.compactWidth ? "" : "Add to playlist"
+                      iconText: "󱁐"
+                      iconSize: Style.font.body
+                      foreground: root.foreground
+                      enabled: root.accountConnected
+                      horizontalPadding: Style.space(4)
+                      verticalPadding: Style.space(2)
+                      tooltipText: "Choose a playlist for this song"
+                      hasCursor: root.cursorOn("footer", "playlist")
+                      onClicked: if (root.service)
+                        root.openPlaylistPicker(root.service.currentTrackItem)
+                      onHovered: function(on) {
+                        if (on) root.setPanelCursor("footer", "playlist")
+                      }
+                      KeyHint { region: "footer"; action: "playlist" }
                     }
 
                     Button {
@@ -5736,9 +5781,9 @@ Item {
             && root.service.playlistOwned(root.service.selectedPlaylist)
           reorderBusy: root.service && root.service.playlistActionBusy
           loading: root.service && root.service.playlistItemsLoading
-          loadMoreText: "Load remaining songs"
+          loadMoreText: "Load more"
           loadingText: root.service && root.service.playlistLoadAll
-            ? "Loading remaining songs… (" + root.service.playlistItems.length + ")" : "Loading…"
+            ? "Loading… (" + root.service.playlistItems.length + ")" : "Loading…"
           hasMore: root.service && root.service.playlistItemsNext !== ""
           emptyMessage: root.service && root.service.selectedPlaylist
             ? (root.service.playlistItemsEmptyMessage

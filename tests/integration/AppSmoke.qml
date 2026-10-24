@@ -13,7 +13,7 @@ ShellRoot {
   }
   function pageXhr() {
     var xhr = {readyState:0, status:0, responseText:"", onreadystatechange:null,
-      open:function() {}, setRequestHeader:function() {}, send:function() {},
+      open:function(method, url) { this.url = url }, setRequestHeader:function() {}, send:function() {},
       abort:function() {}, getResponseHeader:function() { return "1" }}
     pageRequests = pageRequests.concat([xhr])
     return xhr
@@ -89,6 +89,23 @@ ShellRoot {
       completePage(200,{items:[row],offset:2,next:"https://api.spotify.com/v1/playlists/test/items?offset=3"})
       if (spotifyService.playlistLoadAll || pageRequests.length !== beforeLeave)
         throw new Error("Playlist batch kept loading after leaving the view")
+      spotifyService.api.cancelAll()
+      pageRequests = []
+      spotifyService.api.request("GET", "/me", null, null, function() {})
+      spotifyService.api.request("GET", "/me/player/devices", null, null, function() {})
+      spotifyService.api.request("GET", "/me/albums", null, null, function() {})
+      spotifyService.loadSavedTracks(false)
+      completePage(200, {})
+      if (pageRequests.length !== 3 || pageRequests[2].url.indexOf("/me/tracks") < 0)
+        throw new Error("Liked Songs waited behind background library requests")
+      spotifyService.api.cancelAll()
+      pageRequests = []
+      spotifyService.currentUserId = ""
+      spotifyService.loadProfile()
+      spotifyService.loadProfile()
+      if (pageRequests.length !== 1)
+        throw new Error("Opening another surface duplicated the pending profile request")
+      spotifyService.api.cancelAll()
       console.log("APP_SMOKE_PASS")
       Qt.quit()
     }

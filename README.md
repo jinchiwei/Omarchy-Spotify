@@ -328,3 +328,25 @@ No parallel page burst is used. Switching playlists, leaving the playlist view,
 closing the player, a page error, or a rate-limit response stops the batch. Already
 loaded songs are kept, including intentional duplicates. The existing 10,000-item
 safety limit remains. Reopen the playlist and click again to continue as needed.
+
+### Playlist actions and request timing
+
+The full player's current-song row has an explicit **Add to playlist** button
+(icon-only on compact windows), separate from the heart for Liked Songs. It opens
+your editable playlists, loads the sidebar list if needed, and supports paging
+and creating a playlist. Song rows and context menus use “Add to Liked Songs”
+to distinguish liking from playlist membership.
+
+Requested library pages get priority over queued background reads. The requested
+page starts before optional profile/sidebar loads; playlists already returned by
+the user's library don't need another saved-status check.
+
+For latency diagnosis, `omarchy shell quickshell.spotify.player requestTimings`
+returns a bounded list of sanitized API routes, queue/token/HTTP timing and statuses,
+plus current queue size/cooldown. It excludes credentials, bodies, queries and song
+metadata. A fast local receiver cannot remove latency from cloud library endpoints.
+
+Profile loads are deduplicated while pending. Opening another player surface respects
+the existing five-minute liked-status cache rather than forcing another lookup.
+The playlist button is labeled **Load more** while retaining one-click remaining-page
+loading with stop-on-close/error/rate-limit behavior.

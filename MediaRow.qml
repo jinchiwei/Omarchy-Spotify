@@ -269,7 +269,7 @@ BorderSurface {
         iconText: "󰋑"
         foreground: Color.urgent
         accent: Color.urgent
-        tooltipText: "Save to library"
+        tooltipText: root.itemData && root.itemData.type === "track" ? "Add to Liked Songs" : "Save to library"
         horizontalPadding: Style.space(7)
         onClicked: root.saveRequested(root.itemData)
       }

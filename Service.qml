@@ -309,6 +309,7 @@ Item {
   property int playlistItemsSerial: 0
   property int playlistRestoreTargetCount: 0
   property var selectedPlaylist: null
+  property bool profileLoading: false
   property string currentUserId: ""
   property string currentUserImage: ""
   property string currentUserName: ""
@@ -1321,10 +1322,13 @@ Item {
   }
 
   function loadProfile() {
-    if (currentUserId) return
+    if (currentUserId || profileLoading) return
+    profileLoading = true
     var expected = dataSerial
     spotifyApi.request("GET", "/me", null, null, function(status, payload, error) {
-      if (expected !== root.dataSerial || error || !payload) return
+      if (expected !== root.dataSerial) return
+      root.profileLoading = false
+      if (error || !payload) return
       root.currentUserId = String(payload.id || "")
       root.currentUserName = String(payload.display_name || "")
       root.currentUserImage = Api.imageFor(payload.images || [], 96)
@@ -1432,10 +1436,11 @@ Item {
     authManager.withAccessToken(function(token, error) {
       if (token) {
         root.loadPlaybackState()
+        // Start the requested page before optional profile/sidebar work.
+        root.openView(root.activeView, false)
         root.loadProfile()
         root.loadSidebarPlaylists()
         root.verifyRadioPlaybackContext()
-        root.openView(root.activeView, false)
       }
       else if (error && error !== "Log in to Spotify first") root.fail(error)
     })
@@ -1448,7 +1453,7 @@ Item {
         items: "playlists", next: "playlistsNext",
         loading: "playlistsLoading", loaded: "playlistsLoaded",
         path: "/me/playlists", query: { limit: 30 },
-        mapper: "playlist", cursor: false, checkSaved: true, mergeDiscover: true
+        mapper: "playlist", cursor: false, mergeDiscover: true
       }
     if (value === "albums")
       return {
@@ -1537,7 +1542,8 @@ Item {
             root.mergeDiscoverCandidates(page.items)
         }
         if (typeof callback === "function") callback()
-      })
+      }, { priority: (root.activeView === "library" || root.activeView === "playlists"
+          || kind === "tracks") ? "interactive" : "background" })
   }
 
   function loadPlaylists(append, callback, serial) {
@@ -2833,6 +2839,11 @@ Item {
   }
   IpcHandler {
     target: "quickshell.spotify.player"
+    // Route names/timings only: no tokens, request bodies, search queries, or song metadata.
+    function requestTimings(): string { return JSON.stringify({
+      queued: spotifyApi.requestQueue.length, inFlight: spotifyApi.requestsInFlight,
+      cooldownMs: Math.max(0, spotifyApi.rateLimitedUntil - Date.now()),
+      requests: spotifyApi.diagnostics }) }
     function playbackEngineStatus(): string { return root.usingSoloist ? "soloist-local" : String(root.settings.playbackEngine) }
     function configuredPlayer(): string { return root.shortcutPlayer }
     function togglePlayer(): string { return root.invokePlayerShortcut("toggleConfiguredPlayerShortcut") }
@@ -3715,6 +3726,7 @@ Item {
     playlistItemsStatus = 0
     playlistRestoreTargetCount = 0
     selectedPlaylist = null
+    profileLoading = false
     currentUserId = ""
     currentUserImage = ""
     currentUserName = ""
@@ -3827,7 +3839,8 @@ Item {
     if (!uiVisible) playlistLoadAll = false
     if (uiVisible) {
       ensureVisibleLocalReceiver()
-      syncCurrentTrackSaved(true)
+      // Reopening a surface must respect the existing five-minute status cache.
+      syncCurrentTrackSaved(false)
       updateSleepCountdown()
     }
     else cancelVisibleLocalDeviceRefresh()
