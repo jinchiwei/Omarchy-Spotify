@@ -26,6 +26,7 @@ Item {
   property bool unitAvailable: false
   property bool unitChecked: false
   property bool usingFallbackRuntime: false
+  property bool automaticSetupEnabled: true
   property bool automaticSetupAttempted: false
   property bool credentialsAvailable: false
   property bool credentialsChecked: false
@@ -85,7 +86,7 @@ Item {
   // backend into the user's runtime directory. The readiness check also
   // rejects a stale binary or unit, so plugin updates replace older installs.
   function installPlaybackBackendIfNeeded() {
-    if (automaticSetupAttempted || setupBusy || !pluginDir
+    if (!automaticSetupEnabled || automaticSetupAttempted || setupBusy || !pluginDir
         || !requirementsChecked) return
     if (playbackReady) return
     automaticSetupAttempted = true

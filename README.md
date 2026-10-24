@@ -235,3 +235,18 @@ Omarchy Spotify is an independent project and is not affiliated with Spotify.
 Spotify is a trademark of Spotify AB.
 
 Licensed under the [MIT License](LICENSE).
+
+## Using Spotify Soloist or another external receiver
+
+Choose **Spotify Connect** for **Playback engine** in the bar widget settings
+(or run `omarchy bar set quickshell.spotify playbackEngine 'Spotify Connect'`).
+This keeps the Omarchy interface and Web API login, but does not start or require
+the bundled local playback engine. Select the separately running receiver in
+Devices; a currently active receiver is selected automatically.
+
+Spotify Soloist is Spotify's official headless playback receiver. Follow its
+[official setup guide](https://developer.spotify.com/documentation/soloist/tutorials/getting-started)
+to obtain your own private key, install the appropriate build, and pair it through
+an official Spotify app. Never commit or redistribute your key or the binary.
+Soloist builds expire after 90 days and require an update. The receiver's service,
+key, data, and updates are managed separately from this plugin's uninstaller.

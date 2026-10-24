@@ -50,7 +50,8 @@ Item {
     maxBarTextWidth: "240",
     fixedBarWidth: "Off",
     audioQuality: "320 kbps",
-    clientId: ""
+    clientId: "",
+    playbackEngine: "Built-in"
   })
   property var settings: Api.shallowCopy(defaultSettingValues)
 
@@ -93,15 +94,16 @@ Item {
   readonly property alias api: spotifyApi
   readonly property alias daemon: daemonManager
   readonly property alias backend: backendClient
+  readonly property bool externalPlayback: settings.playbackEngine === "Spotify Connect"
   readonly property bool accountConnected: authManager.loggedIn
   readonly property bool sessionPending: !authManager.sessionChecked
-  readonly property bool fullyConnected: daemonManager.playbackReady
-    && authManager.loggedIn && daemonManager.credentialsAvailable
-  readonly property bool loginBusy: daemonManager.setupBusy
-    || authManager.loginBusy
+  readonly property bool fullyConnected: authManager.loggedIn
+    && (externalPlayback || (daemonManager.playbackReady && daemonManager.credentialsAvailable))
+  readonly property bool loginBusy: authManager.loginBusy
     || authManager.sessionBusy || !authManager.sessionChecked
-    || daemonManager.authenticationBusy || daemonManager.credentialsClearBusy
-    || !daemonManager.credentialsChecked || !daemonManager.requirementsChecked
+    || (!externalPlayback && (daemonManager.setupBusy || daemonManager.authenticationBusy
+      || daemonManager.credentialsClearBusy || !daemonManager.credentialsChecked
+      || !daemonManager.requirementsChecked))
   readonly property string loginProgress: loginProgressText()
 
   readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
@@ -497,11 +499,12 @@ Item {
     var keys = ["deviceName", "idleShutdownMinutes", "showMiniPlayer",
       "showVinylRecord", "shortcutPlayer", "shortcutHints", "showLyrics", "showArtwork", "showTrackTitle", "showArtistName",
       "showPausedTrack", "scrollBarText", "scrollSpeed", "maxBarTextWidth",
-      "fixedBarWidth", "audioQuality", "clientId"]
+      "fixedBarWidth", "audioQuality", "clientId", "playbackEngine"]
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i]
       if (source[key] !== undefined) next[key] = source[key]
     }
+    next.playbackEngine = next.playbackEngine === "Spotify Connect" ? "Spotify Connect" : "Built-in"
     next.deviceName = String(next.deviceName || "Omarchy Spotify").trim() || "Omarchy Spotify"
     next.idleShutdownMinutes = Math.max(0, Math.min(1440,
       Math.floor(Number(next.idleShutdownMinutes) || 0)))
@@ -911,6 +914,7 @@ Item {
   property bool localPlaybackStopped: false
 
   function ensureVisibleLocalReceiver() {
+    if (externalPlayback) { cancelVisibleLocalDeviceRefresh(); return }
     if (localPlaybackStopped || daemonManager.terminalFailure) return
     var action = Api.visibleLocalReceiverAction(uiVisible,
       fullyConnected && daemonManager.credentialsAvailable,
@@ -925,6 +929,7 @@ Item {
   }
 
   function refreshVisibleLocalDevice() {
+    if (externalPlayback) { cancelVisibleLocalDeviceRefresh(); return }
     if (localPlaybackStopped || daemonManager.terminalFailure) return
     var action = Api.visibleLocalReceiverAction(uiVisible,
       fullyConnected && daemonManager.credentialsAvailable,
@@ -2823,6 +2828,7 @@ Item {
   // target. Otherwise, make the local receiver the visible default as soon as
   // it is available, so the first playback click needs no trip through Devices.
   function autoselectLocalDevice() {
+    if (externalPlayback) return null
     var current = chooseDevice()
     var local = Api.automaticLocalPlaybackDevice(
       selectedDeviceId, current, localDevice())
@@ -2952,6 +2958,16 @@ Item {
   function dispatchPendingPlayback(playbackSerial) {
     if (playbackSerial !== pendingPlaybackSerial || !pendingPlaybackBody) return
     var target = autoselectLocalDevice() || chooseDevice()
+    if (externalPlayback) {
+      if (!target || !target.id || target.restricted || target.local) {
+        clearPendingPlayback()
+        fail("Select your Spotify Connect playback device in Devices, then try again")
+        return
+      }
+      localActivationRequested = false
+      sendPendingPlayback(target.id)
+      return
+    }
     if (target && !target.local) {
       localActivationRequested = false
       sendPendingPlayback(Api.playbackTargetDeviceId(target, selectedDeviceExplicit))
@@ -3551,6 +3567,7 @@ Item {
   }
 
   function continueLocalPlaybackSetup() {
+    if (externalPlayback) { finishLoginFlow(); return }
     if (!daemonManager.playbackReady) {
       daemonManager.setupPlayback()
       return
@@ -3772,7 +3789,7 @@ Item {
     target: authManager
     function onLoginSucceeded() {
       root.syncCurrentTrackSaved(true)
-      var continueSetup = root.loginFlowActive && (!root.daemon.playbackReady
+      var continueSetup = !root.externalPlayback && root.loginFlowActive && (!root.daemon.playbackReady
         || !root.daemon.credentialsAvailable)
       root.finishLoginFlow()
       if (continueSetup) {
@@ -4162,6 +4179,7 @@ Item {
 
   DaemonManager {
     id: daemonManager
+    automaticSetupEnabled: !root.externalPlayback
     pluginDir: root.pluginDir
     deviceName: root.deviceName
     bitrateKbps: root.bitrateKbps

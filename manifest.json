@@ -45,7 +45,8 @@
       "fixedBarWidth": "Off",
       "audioQuality": "320 kbps",
       "showArtwork": "On",
-      "clientId": ""
+      "clientId": "",
+      "playbackEngine": "Built-in"
     },
     "schema": [
       {
@@ -218,6 +219,17 @@
         "label": "Spotify Developer app client ID",
         "defaultValue": "",
         "description": "Optional personal Spotify Developer app client ID, with its own quota. Empty keeps the plugin's client. A valid 32-hex ID is required. Changing it clears the current session and requires authorization for your app."
+      },
+      {
+        "key": "playbackEngine",
+        "type": "enum",
+        "label": "Playback engine",
+        "options": [
+          "Built-in",
+          "Spotify Connect"
+        ],
+        "defaultValue": "Built-in",
+        "description": "Spotify Connect controls a separately running receiver such as Spotify Soloist. Pair and start that receiver separately; the built-in engine will not be started."
       }
     ]
   }

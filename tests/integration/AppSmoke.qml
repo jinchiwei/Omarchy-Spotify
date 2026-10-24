@@ -18,6 +18,24 @@ ShellRoot {
         throw new Error("Search navigation is missing")
       spotifyService.clearSearch()
       if (spotifyService.searchQuery !== "") throw new Error("Search state did not clear")
+      spotifyService.applySettings({ playbackEngine: "Spotify Connect" })
+      if (spotifyService.settings.playbackEngine !== "Spotify Connect")
+        throw new Error("External playback preference was discarded")
+      spotifyService.auth.customClientId = ""
+      spotifyService.auth.loggedIn = true
+      spotifyService.auth.sessionChecked = true
+      spotifyService.daemon.binaryAvailable = false
+      spotifyService.daemon.unitAvailable = false
+      spotifyService.daemon.credentialsAvailable = false
+      if (!spotifyService.fullyConnected)
+        throw new Error("External playback still requires the unused local engine")
+      spotifyService.selectedDeviceId = ""
+      spotifyService.devices = []
+      spotifyService.pendingPlaybackBody = { uris: ["spotify:track:test"] }
+      spotifyService.pendingPlaybackSerial = 7
+      spotifyService.dispatchPendingPlayback(7)
+      if (spotifyService.lastError.indexOf("Spotify Connect") < 0)
+        throw new Error("Missing external device did not give an actionable error")
       console.log("APP_SMOKE_PASS")
       Qt.quit()
     }
