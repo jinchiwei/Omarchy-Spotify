@@ -222,7 +222,7 @@
         "type": "string",
         "label": "Spotify Developer app client ID",
         "defaultValue": "",
-        "description": "Optional personal Spotify Developer app client ID, with its own quota. Empty keeps the plugin's client. A valid 32-hex ID is required. Changing it clears the current session and requires authorization for your app."
+        "description": "Required personal Spotify Developer app client ID. A valid 32-hex ID is required; this fork has no shared Web API fallback. Changing it clears the current session and requires authorization for your app."
       },
       {
         "key": "playbackEngine",

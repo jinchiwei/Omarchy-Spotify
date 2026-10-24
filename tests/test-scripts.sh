@@ -480,13 +480,8 @@ grep -q 'omarchy-spotify-backend' "$source_root/scripts/spotifyd-auth.sh"
 grep -q -- '--config-path "$config_root/omarchy-spotify/spotifyd.conf"' \
   "$source_root/scripts/spotifyd-auth.sh"
 grep -q -- '--oauth-port 8000' "$source_root/scripts/spotifyd-auth.sh"
-# OAuth identity stays immutable by default: the shipped client ID is the
-# fallback, and only a user-supplied, strictly 32-hex client ID can override
-# it — never an arbitrary string from a writable surface. The keyring and OAuth
-# redirect stay scoped to that resolved ID. The streaming-only Connect ID stays
-# internal (not in the manifest).
-grep -q 'property string clientId: "d420a117a32841c2b3474932e49fb54b"' \
-  "$source_root/AuthManager.qml"
+# OAuth identity behavior (including no shared fallback) is exercised by
+# tests/integration/AuthIdentity.qml, not by grepping a shipped ID constant.
 grep -q 'readonly property string redirectUri: "http://127.0.0.1:"' \
   "$source_root/AuthManager.qml"
 grep -q 'resolvedClientId' "$source_root/AuthManager.qml"

@@ -6,6 +6,7 @@ ShellRoot {
   Plugin.AuthManager {
     id: auth
     pluginDir: "/nonexistent"
+    customClientId: "11111111111111111111111111111111"
     property int restores: 0
     function restoreSession() { restores++; sessionChecked = true }
   }

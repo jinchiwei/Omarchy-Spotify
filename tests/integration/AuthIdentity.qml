@@ -11,6 +11,9 @@ ShellRoot {
     interval: 1
     running: true
     onTriggered: {
+    check(!auth.validClientId, "Blank personal app still enables a shared fallback")
+    check(auth.resolvedClientId === "", "Blank app resolved to somebody else's client ID")
+    auth.customClientId = "11111111111111111111111111111111"
     auth.accessToken = "old"
     auth.accessTokenExpiresAt = Date.now() + 3600000
     auth.loggedIn = true

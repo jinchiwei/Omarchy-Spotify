@@ -544,7 +544,7 @@ Item {
     next.audioQuality = quality.indexOf("96") === 0 ? "96 kbps"
       : (quality.indexOf("160") === 0 ? "160 kbps" : "320 kbps")
     // A personal Spotify client ID opts out of the shared rate-limit bucket.
-    // Anything that is not a 32-hex ID (including empty) means "keep shipped".
+    // Empty or invalid IDs cannot fall back to a shared Web API application.
     var customClientId = String(next.clientId || "").trim()
     next.clientId = customClientId.toLowerCase()
     return next

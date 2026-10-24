@@ -6629,7 +6629,7 @@ Item {
               width: parent.width
               spacing: Style.space(6)
               Text {
-                text: "PERSONAL SPOTIFY APP · OPTIONAL"
+                text: "PERSONAL SPOTIFY APP · REQUIRED"
                 color: root.muted
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.caption
@@ -6639,7 +6639,7 @@ Item {
                 width: parent.width
                 text: root.service && root.service.settings.clientId
                   ? "Active: your personal Spotify app"
-                  : "Active: shared app — its rate limits are shared with other users"
+                  : "No personal app configured — add your Client ID to connect"
                 color: root.service && root.service.settings.clientId ? root.accent : Color.urgent
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
@@ -6648,7 +6648,7 @@ Item {
               TextField {
                 width: parent.width
                 foreground: root.foreground
-                placeholderText: "Leave empty to use the shared app"
+                placeholderText: "Your personal Spotify Client ID"
                 text: root.draftClientId
                 onTextEdited: root.draftClientId = text
               }
@@ -6665,8 +6665,7 @@ Item {
               Button {
                 text: "Apply app"
                 foreground: root.foreground
-                enabled: root.service && (root.draftClientId.trim() === ""
-                  || /^[0-9a-f]{32}$/i.test(root.draftClientId.trim()))
+                enabled: root.service && /^[0-9a-f]{32}$/i.test(root.draftClientId.trim())
                   && root.draftClientId.trim().toLowerCase() !== String(root.service.settings.clientId || "")
                 onClicked: root.service.persistSettings({ clientId: root.draftClientId.trim() })
               }

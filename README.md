@@ -13,7 +13,7 @@ for you, ready when you want them.
 ## Install
 
 ```bash
-omarchy plugin add https://github.com/stappmus/Omarchy-Spotify.git --enable
+omarchy plugin add https://github.com/jinchiwei/Omarchy-Spotify.git --enable
 ```
 
 Requires Omarchy 4 and a personal Spotify Premium account.
@@ -146,17 +146,16 @@ instead of executing an unverified download.
 
 ## Seeing "Spotify is busy." or slow searches?
 
-The plugin's Spotify Web API client ID is shared by every install worldwide,
-and Spotify rate-limits requests **per app**, not per user. When that shared
-quota runs out you see `Spotify is busy. Try again in N seconds.` and searches
-that stall even though nothing is wrong on your side.
-
-You can use a personal [Spotify Developer app](https://developer.spotify.com/dashboard)
-with a separate quota. This does not provide unlimited requests or restore restricted endpoints.
+This fork requires a personal [Spotify Developer app](https://developer.spotify.com/dashboard)
+and never falls back to the original plugin's shared Web API credentials. You can
+still encounter Spotify rate limits with your own app. Development-mode apps under
+the same developer account share a quota; creating more Client IDs does not increase
+that budget. Respect Retry-After, reuse loaded pages, and avoid unnecessary refreshes.
+A personal app does not provide unlimited requests or restore restricted endpoints.
 
 1. Add `http://127.0.0.1:8989/login` as the app's redirect URI.
-2. Set **Spotify Developer app client ID** in the plugin settings. Leave it empty
-   to use the shipped app. Invalid IDs produce an error.
+2. Set **Spotify Developer app client ID** in the plugin settings and click **Apply app**.
+   Blank or malformed IDs produce an error; there is no shared fallback.
 3. Authorize the selected app. Changing the ID clears the current session and
    account data; stored sessions are isolated by client ID.
 
@@ -355,8 +354,19 @@ The optional current-song liked-status lookup waits for foreground page requests
 finish. It still updates the heart when idle; it cannot put a newly opened library
 page behind its own rate-limit retry before that page has loaded.
 
-The personal-app settings section explicitly shows whether a personal or shared app
-is active. Request timing diagnostics include the resolved public Client ID and loaded
+The personal-app settings section explicitly shows whether a personal app
+is configured. Request timing diagnostics include the resolved public Client ID and loaded
 item counts, so troubleshooting can verify the actual app instead of assuming that a
 previous OAuth grant also persisted the setting. Personal IDs are machine settings;
 no personal ID or private Soloist key is baked into the plugin.
+
+### This fork requires your own Spotify app
+
+There is **no fallback to the original author's shared Web API app**. Configure
+your own Spotify Developer Client ID in Settings → Personal Spotify App and apply
+it before signing in. A blank/malformed ID gives an actionable setup error instead
+of silently sending traffic through another developer's quota. The existing official
+Spotify Connect streaming integration remains separate from the personal Web API app.
+
+This repository contains no personal app ID, Soloist API key, refresh token, or
+private session. Each user supplies their own credentials using the setup above.
