@@ -370,3 +370,6 @@ Spotify Connect streaming integration remains separate from the personal Web API
 
 This repository contains no personal app ID, Soloist API key, refresh token, or
 private session. Each user supplies their own credentials using the setup above.
+
+The optional lyrics installer downloads [jinchiwei/Omasing](https://github.com/jinchiwei/Omasing).
+Its install prompt displays that same configured repository URL.

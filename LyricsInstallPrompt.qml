@@ -59,7 +59,10 @@ Item {
     Text {
       width: parent.width
       visible: root.availability === "missing"
-      text: "This downloads github.com/stappmus/Omasing. Omarchy plugins run unsandboxed inside the shell."
+      text: "This downloads " + String(root.service && root.service.lyricsPluginUrl
+        ? root.service.lyricsPluginUrl : "https://github.com/jinchiwei/Omasing.git")
+          .replace(/^https?:\/\//, "").replace(/\.git$/, "")
+        + ". Omarchy plugins run unsandboxed inside the shell."
       color: root.muted
       font.family: Style.font.family
       font.pixelSize: Style.font.caption

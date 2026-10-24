@@ -147,7 +147,7 @@ Item {
     title, artist, album, lengthSeconds, artUrl, positionSeconds)
   readonly property bool lyricsAvailable: showLyrics && currentLyricsSong !== null
   readonly property string lyricsPluginId: "stappmus.lyrics"
-  readonly property string lyricsPluginUrl: "https://github.com/stappmus/Omasing.git"
+  readonly property string lyricsPluginUrl: "https://github.com/jinchiwei/Omasing.git"
   readonly property string lyricsPluginAvailability: {
     var plugins = pluginRegistry && pluginRegistry.installedPlugins
       ? pluginRegistry.installedPlugins : ({})
