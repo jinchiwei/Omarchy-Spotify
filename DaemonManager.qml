@@ -87,7 +87,7 @@ Item {
   function installPlaybackBackendIfNeeded() {
     if (automaticSetupAttempted || setupBusy || !pluginDir
         || !requirementsChecked) return
-    if (playbackReady && !usingFallbackRuntime) return
+    if (playbackReady) return
     automaticSetupAttempted = true
     setupPlayback()
   }

@@ -34,6 +34,7 @@ Item {
   Component.onCompleted: {
     initialized = true
     if (!validClientId) changeIdentity()
+    else restoreSession()
   }
   onResolvedClientIdChanged: if (initialized) changeIdentity()
   property int oauthPort: 8989
