@@ -2,3 +2,12 @@ scripts/__pycache__/
 **/__pycache__/
 *.pyc
 backend/target/
+
+# Local credentials and downloaded Spotify binaries must never be published.
+.env
+.env.*
+key.env
+soloist
+soloist.tar.gz
+credentials.json
+session.json

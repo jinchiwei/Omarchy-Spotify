@@ -3,6 +3,9 @@ import Quickshell
 import "plugin" as Plugin
 
 ShellRoot {
+  QtObject { id: scopedShell; property var barConfig: ({ layout: { left: [
+    { id: "quickshell.spotify", playbackEngine: "Spotify Connect" }
+  ] } }) }
   Plugin.Service { id: spotifyService }
   Plugin.Panel { id: panel; service: spotifyService; width: 1280; height: 800 }
   Plugin.BarWidget { id: widget }
@@ -18,6 +21,10 @@ ShellRoot {
         throw new Error("Search navigation is missing")
       spotifyService.clearSearch()
       if (spotifyService.searchQuery !== "") throw new Error("Search state did not clear")
+      spotifyService.shell = scopedShell
+      spotifyService.syncSettings()
+      if (spotifyService.settings.playbackEngine !== "Spotify Connect")
+        throw new Error("Capability-scoped shell settings were ignored")
       spotifyService.applySettings({ playbackEngine: "Spotify Connect" })
       if (spotifyService.settings.playbackEngine !== "Spotify Connect")
         throw new Error("External playback preference was discarded")

@@ -51,7 +51,8 @@ Item {
     fixedBarWidth: "Off",
     audioQuality: "320 kbps",
     clientId: "",
-    playbackEngine: "Built-in"
+    playbackEngine: "Built-in",
+    titleColor: ""
   })
   property var settings: Api.shallowCopy(defaultSettingValues)
 
@@ -499,11 +500,13 @@ Item {
     var keys = ["deviceName", "idleShutdownMinutes", "showMiniPlayer",
       "showVinylRecord", "shortcutPlayer", "shortcutHints", "showLyrics", "showArtwork", "showTrackTitle", "showArtistName",
       "showPausedTrack", "scrollBarText", "scrollSpeed", "maxBarTextWidth",
-      "fixedBarWidth", "audioQuality", "clientId", "playbackEngine"]
+      "fixedBarWidth", "audioQuality", "clientId", "playbackEngine", "titleColor"]
     for (var i = 0; i < keys.length; i++) {
       var key = keys[i]
       if (source[key] !== undefined) next[key] = source[key]
     }
+    next.titleColor = /^#[0-9a-f]{6}$/i.test(String(next.titleColor || ""))
+      ? String(next.titleColor) : ""
     next.playbackEngine = next.playbackEngine === "Spotify Connect" ? "Spotify Connect" : "Built-in"
     next.deviceName = String(next.deviceName || "Omarchy Spotify").trim() || "Omarchy Spotify"
     next.idleShutdownMinutes = Math.max(0, Math.min(1440,
@@ -652,8 +655,9 @@ Item {
 
   function configuredEntry() {
     var config = shell && shell.shellConfig ? shell.shellConfig : null
-    if (!config) return null
-    var layout = config.bar && config.bar.layout ? config.bar.layout : null
+    var barConfig = config && config.bar ? config.bar
+      : (shell && shell.barConfig ? shell.barConfig : null)
+    var layout = barConfig && barConfig.layout ? barConfig.layout : null
     var sections = ["left", "center", "right"]
     if (layout) {
       for (var s = 0; s < sections.length; s++) {
@@ -662,14 +666,14 @@ Item {
           if (rows[i] && String(rows[i].id || "") === pluginId) return rows[i]
       }
     }
-    var plugins = Array.isArray(config.plugins) ? config.plugins : []
+    var plugins = config && Array.isArray(config.plugins) ? config.plugins : []
     for (var p = 0; p < plugins.length; p++)
       if (plugins[p] && String(plugins[p].id || "") === pluginId) return plugins[p]
     return null
   }
 
   function syncSettings() {
-    applySettings(configuredEntry() || {})
+    applySettings(configuredEntry() || settings)
     reconcileSessionPersistence()
     resumeLyricsInstallIntent()
   }
@@ -3533,6 +3537,7 @@ Item {
   }
 
   function startEngine() {
+    if (externalPlayback) { fail("Start your Spotify Connect receiver, then select it in Devices"); return }
     localPlaybackStopped = false
     noteActivity()
     localActivationRequested = true

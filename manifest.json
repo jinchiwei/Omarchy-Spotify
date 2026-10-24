@@ -46,7 +46,8 @@
       "audioQuality": "320 kbps",
       "showArtwork": "On",
       "clientId": "",
-      "playbackEngine": "Built-in"
+      "playbackEngine": "Built-in",
+      "titleColor": ""
     },
     "schema": [
       {
@@ -230,6 +231,13 @@
         ],
         "defaultValue": "Built-in",
         "description": "Spotify Connect controls a separately running receiver such as Spotify Soloist. Pair and start that receiver separately; the built-in engine will not be started."
+      },
+      {
+        "key": "titleColor",
+        "type": "string",
+        "label": "Now playing title color",
+        "defaultValue": "",
+        "description": "Optional #RRGGBB color for the song title in both players. Empty follows the theme accent."
       }
     ]
   }

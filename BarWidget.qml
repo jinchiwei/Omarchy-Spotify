@@ -1011,8 +1011,8 @@ BarWidget {
               text: Api.idleMediaText(root.spotify ? root.spotify.title : "",
                 root.spotify ? root.spotify.lastPlayedItem : null, "name",
                 "Nothing playing")
-              color: root.spotify && root.spotify.title
-                ? root.foreground : root.muted
+              color: root.spotify && (root.spotify.title || root.spotify.lastPlayedItem)
+                ? (root.spotify.settings.titleColor || Color.accent) : root.muted
               font.family: root.bar ? root.bar.fontFamily : Style.font.family
               font.pixelSize: Style.font.subtitle
               font.bold: true

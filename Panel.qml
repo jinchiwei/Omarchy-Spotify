@@ -4107,8 +4107,8 @@ Item {
                       root.service ? root.service.title : "",
                       root.service ? root.service.lastPlayedItem : null, "name",
                       "Nothing playing")
-                    color: root.service && root.service.title
-                      ? root.foreground : root.muted
+                    color: root.service && (root.service.title || root.service.lastPlayedItem)
+                      ? (root.service.settings.titleColor || root.accent) : root.muted
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.body
                     font.bold: true

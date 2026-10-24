@@ -1,0 +1,20 @@
+[Unit]
+Description=Spotify Soloist playback for Omarchy
+After=graphical-session.target pipewire.service
+PartOf=graphical-session.target
+Conflicts=omarchy-spotifyd.service omarchy-spotify.service
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/soloist/key.env
+ExecStart=%h/.local/bin/soloist --device-name "Omarchy Soloist" --api-key ${SOLOIST_API_KEY} --cache-size 500 --ws 127.0.0.1:0
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=10
+UMask=0077
+NoNewPrivileges=true
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=graphical-session.target

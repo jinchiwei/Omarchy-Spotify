@@ -250,3 +250,41 @@ to obtain your own private key, install the appropriate build, and pair it throu
 an official Spotify app. Never commit or redistribute your key or the binary.
 Soloist builds expire after 90 days and require an update. The receiver's service,
 key, data, and updates are managed separately from this plugin's uninstaller.
+
+### Soloist user-service example (Linux)
+
+After installing the official executable as `~/.local/bin/soloist`, create
+`~/.config/soloist/key.env` containing `SOLOIST_API_KEY=your-own-key`. Create the
+directory with mode 700 and the file with mode 600. Keep it outside this repo.
+Copy `systemd/omarchy-soloist.service.example` to
+`~/.config/systemd/user/omarchy-soloist.service`, then run:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user stop omarchy-spotifyd.service omarchy-spotify.service
+systemctl --user enable --now omarchy-soloist.service
+omarchy bar set quickshell.spotify playbackEngine 'Spotify Connect'
+omarchy restart shell
+```
+
+Pair **Omarchy Soloist** once from an official Spotify app on the same network,
+then select it in this plugin's Devices list. `soloist ctl status` verifies the
+receiver is running and logged in. The receiver is separate from this plugin;
+its key is separate from your Web API app's Client ID. Spotify's six-month
+Web API reauthorization rule still applies to the interface.
+
+Update the receiver before its 90-day build expiry by replacing the executable
+with a fresh build from Spotify's official download page and restarting
+`omarchy-soloist.service`. Preserve its data directory to retain pairing.
+To remove the receiver, disable/stop its service and remove its unit, executable,
+private key directory, `~/.local/share/soloist`, and `~/.cache/soloist`.
+
+The mini-player and full-player song titles follow the theme accent by default.
+For an independent title color, for example cyan:
+
+```bash
+omarchy bar set quickshell.spotify titleColor '#00E8C6'
+```
+
+Set `titleColor` to an empty string to follow the theme again. These are local
+settings; do not hardcode your personal client ID, key, or sessions in the plugin.
