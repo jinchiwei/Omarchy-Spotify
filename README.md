@@ -350,3 +350,13 @@ Profile loads are deduplicated while pending. Opening another player surface res
 the existing five-minute liked-status cache rather than forcing another lookup.
 The playlist button is labeled **Load more** while retaining one-click remaining-page
 loading with stop-on-close/error/rate-limit behavior.
+
+The optional current-song liked-status lookup waits for foreground page requests to
+finish. It still updates the heart when idle; it cannot put a newly opened library
+page behind its own rate-limit retry before that page has loaded.
+
+The personal-app settings section explicitly shows whether a personal or shared app
+is active. Request timing diagnostics include the resolved public Client ID and loaded
+item counts, so troubleshooting can verify the actual app instead of assuming that a
+previous OAuth grant also persisted the setting. Personal IDs are machine settings;
+no personal ID or private Soloist key is baked into the plugin.

@@ -6635,6 +6635,16 @@ Item {
                 font.pixelSize: Style.font.caption
                 font.bold: true
               }
+              Text {
+                width: parent.width
+                text: root.service && root.service.settings.clientId
+                  ? "Active: your personal Spotify app"
+                  : "Active: shared app — its rate limits are shared with other users"
+                color: root.service && root.service.settings.clientId ? root.accent : Color.urgent
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                wrapMode: Text.WordWrap
+              }
               TextField {
                 width: parent.width
                 foreground: root.foreground

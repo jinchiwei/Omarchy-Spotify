@@ -106,6 +106,29 @@ ShellRoot {
       if (pageRequests.length !== 1)
         throw new Error("Opening another surface duplicated the pending profile request")
       spotifyService.api.cancelAll()
+      pageRequests = []
+      spotifyService.api.rateLimitedUntil = 0
+      spotifyService.applyPlaybackState({device:{id:"receiver", name:"Remote", is_active:true},
+        item:{id:"current",uri:"spotify:track:current",type:"track",name:"Current",duration_ms:1000,artists:[]},
+        progress_ms:0,is_playing:false})
+      spotifyService.setUiVisible("request-order-test", true)
+      if (pageRequests.some(function(xhr) { return xhr.url.indexOf("/library/contains") >= 0 }))
+        throw new Error("Opening a surface started optional liked-status work before its page")
+      spotifyService.flushCurrentTrackSaved()
+      if (pageRequests.some(function(xhr) { return xhr.url.indexOf("/library/contains") >= 0 }))
+        throw new Error("Optional liked-status work ignored pending foreground work")
+      spotifyService.api.cancelAll()
+      pageRequests = []
+      spotifyService.savedTracksLoading = false
+      spotifyService.playlistsLoading = false
+      spotifyService.flushCurrentTrackSaved()
+      if (pageRequests.length !== 1 || pageRequests[0].url.indexOf("/library/contains") < 0)
+        throw new Error("Deferred liked-status lookup never resumed")
+      completePage(200, [true])
+      if (!spotifyService.currentTrackSaved)
+        throw new Error("Deferred liked-status lookup did not update the heart")
+      spotifyService.setUiVisible("request-order-test", false)
+      spotifyService.api.cancelAll()
       console.log("APP_SMOKE_PASS")
       Qt.quit()
     }

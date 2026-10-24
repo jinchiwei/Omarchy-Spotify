@@ -1700,7 +1700,25 @@ Item {
   function syncCurrentTrackSaved(force) {
     var item = currentTrackItem
     if (!uiVisible || !authManager.loggedIn || !item) return
-    checkSavedItems([item], force === true)
+    if (force === true) checkSavedItems([item], true)
+    else if (!savedStateIsFresh(item.uri, Date.now())) currentTrackSavedDelay.restart()
+  }
+
+  function flushCurrentTrackSaved() {
+    if (!uiVisible || !authManager.loggedIn || !currentTrackItem) return
+    // Optional heart metadata must not throttle the page the user just opened.
+    if (spotifyApi.requestsInFlight || spotifyApi.requestQueue.length
+        || savedTracksLoading || playlistsLoading || homeLoading) {
+      currentTrackSavedDelay.restart()
+      return
+    }
+    checkSavedItems([currentTrackItem], false)
+  }
+
+  Timer {
+    id: currentTrackSavedDelay
+    interval: 350
+    onTriggered: root.flushCurrentTrackSaved()
   }
 
   function toggleCurrentTrackSaved() {
@@ -2841,6 +2859,9 @@ Item {
     target: "quickshell.spotify.player"
     // Route names/timings only: no tokens, request bodies, search queries, or song metadata.
     function requestTimings(): string { return JSON.stringify({
+      clientId: authManager.resolvedClientId,
+      loaded: { likedSongs: root.savedTracks.length, playlists: root.playlists.length,
+        profile: !!root.currentUserId },
       queued: spotifyApi.requestQueue.length, inFlight: spotifyApi.requestsInFlight,
       cooldownMs: Math.max(0, spotifyApi.rateLimitedUntil - Date.now()),
       requests: spotifyApi.diagnostics }) }
@@ -3865,7 +3886,7 @@ Item {
   Connections {
     target: authManager
     function onLoginSucceeded() {
-      root.syncCurrentTrackSaved(true)
+      root.syncCurrentTrackSaved(false)
       var continueSetup = !root.externalPlayback && root.loginFlowActive && (!root.daemon.playbackReady
         || !root.daemon.credentialsAvailable)
       root.finishLoginFlow()
