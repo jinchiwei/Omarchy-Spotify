@@ -19,6 +19,7 @@ Item {
   property var shell: null
   property var manifest: null
   property var pluginRegistry: null
+  property var barWidgetRegistry: null
 
   readonly property string pluginId: manifest && manifest.id
     ? String(manifest.id) : "quickshell.spotify"
@@ -149,6 +150,22 @@ Item {
   readonly property string lyricsPluginId: "stappmus.lyrics"
   readonly property string lyricsPluginUrl: "https://github.com/jinchiwei/Omasing.git"
   readonly property string lyricsPluginAvailability: {
+    // Newer Omarchy gives each plugin a self-only manifest registry. Use its
+    // public widget catalogue for cross-plugin integration instead.
+    var widgets = barWidgetRegistry && barWidgetRegistry.widgets
+      ? barWidgetRegistry.widgets : ({})
+    if (widgets[lyricsPluginId]) {
+      var config = shell && shell.shellConfig ? shell.shellConfig.bar
+        : (shell && shell.barConfig ? shell.barConfig : null)
+      var layout = config && config.layout ? config.layout : ({})
+      var sections = ["left", "center", "right"]
+      for (var si = 0; si < sections.length; si++) {
+        var entries = layout[sections[si]] || []
+        for (var ei = 0; ei < entries.length; ei++)
+          if (String(entries[ei].id || entries[ei]) === lyricsPluginId) return "ready"
+      }
+      return "disabled"
+    }
     var plugins = pluginRegistry && pluginRegistry.installedPlugins
       ? pluginRegistry.installedPlugins : ({})
     var installed = !!plugins[lyricsPluginId]
@@ -2865,6 +2882,8 @@ Item {
       queued: spotifyApi.requestQueue.length, inFlight: spotifyApi.requestsInFlight,
       cooldownMs: Math.max(0, spotifyApi.rateLimitedUntil - Date.now()),
       requests: spotifyApi.diagnostics }) }
+    function lyricsStatus(): string { return root.lyricsPluginAvailability }
+    function showLyrics(): string { return root.requestLyrics("ipc") }
     function playbackEngineStatus(): string { return root.usingSoloist ? "soloist-local" : String(root.settings.playbackEngine) }
     function configuredPlayer(): string { return root.shortcutPlayer }
     function togglePlayer(): string { return root.invokePlayerShortcut("toggleConfiguredPlayerShortcut") }

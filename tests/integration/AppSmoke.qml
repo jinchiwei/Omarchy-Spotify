@@ -129,6 +129,16 @@ ShellRoot {
         throw new Error("Deferred liked-status lookup did not update the heart")
       spotifyService.setUiVisible("request-order-test", false)
       spotifyService.api.cancelAll()
+      if (!("barWidgetRegistry" in spotifyService))
+        throw new Error("Lyrics detection has no public widget catalogue on scoped Omarchy")
+      spotifyService.pluginRegistry = {installedPlugins:{"quickshell.spotify":{}}}
+      spotifyService.barWidgetRegistry = {widgets:{"stappmus.lyrics":{metadata:{}}}}
+      scopedShell.barConfig = {layout:{left:[{id:"stappmus.lyrics"}],center:[],right:[]}}
+      if (spotifyService.lyricsPluginAvailability !== "ready")
+        throw new Error("Installed lyrics widget is hidden by the self-only plugin registry")
+      scopedShell.barConfig = {layout:{left:[],center:[],right:[]}}
+      if (spotifyService.lyricsPluginAvailability !== "disabled")
+        throw new Error("Lyrics widget outside the bar incorrectly reported ready")
       console.log("APP_SMOKE_PASS")
       Qt.quit()
     }

@@ -373,3 +373,8 @@ private session. Each user supplies their own credentials using the setup above.
 
 The optional lyrics installer downloads [jinchiwei/Omasing](https://github.com/jinchiwei/Omasing).
 Its install prompt displays that same configured repository URL.
+
+Lyrics availability uses Omarchy's public widget catalogue and bar placement on
+versions with a self-scoped plugin registry. This avoids prompting to install an
+already enabled Omasing widget. `omarchy shell quickshell.spotify.player lyricsStatus`
+reports its detected state; `showLyrics` opens lyrics for the current song.
