@@ -3,6 +3,12 @@ import QtTest
 import "../Api.js" as Api
 TestCase {
   name: "SoloistIntegration"
+  function test_pausedLocalReceiverStillChecksCloud() {
+    verify(Api.remotePlaybackPollShouldRun(true,false,false,false,false,true,true))
+    verify(!Api.remotePlaybackPollShouldRun(false,false,false,false,false,true,true))
+    compare(Api.remotePlaybackPollInterval(false,false,true,true,false),60000)
+    compare(Api.remotePlaybackPollInterval(true,false,true,true,false),15000)
+  }
   function test_rememberedInactiveDeviceSurvivesReopen() {
     var rows = [{id:"solo",name:"Omarchy Soloist",active:false},
       {id:"phone",name:"Phone",active:false}]

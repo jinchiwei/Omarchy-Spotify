@@ -95,13 +95,17 @@ Item {
   property bool sessionFileDirty: false
   property bool pluginSessionKeysPendingStrip: false
 
+  property var localPlaybackClient: soloistClient
+  property double cloudPlaybackLastAttemptAt: 0
+  property double cloudPlaybackLastSuccessAt: 0
+  property int cloudPlaybackLastStatus: 0
   readonly property alias auth: authManager
   readonly property alias api: spotifyApi
   readonly property alias daemon: daemonManager
   readonly property alias backend: backendClient
   readonly property bool externalPlayback: settings.playbackEngine === "Spotify Connect"
   readonly property bool usingSoloist: externalPlayback && settings.soloistLocalControl === "On"
-    && soloistClient.ready && soloistClient.state.is_active === true && soloistTargetSelected()
+    && localPlaybackClient.ready && localPlaybackClient.state.is_active === true && soloistTargetSelected()
   onUsingSoloistChanged: {
     if (!usingSoloist && authManager.loggedIn) loadPlaybackState()
   }
@@ -1001,7 +1005,7 @@ Item {
       // SpotifyApi restores the keyring-backed session when needed. Do this for
       // every opened surface so the mini-player can discover remote Spotify
       // Connect playback without requiring the full panel to be opened first.
-      loadPlaybackState()
+      loadPlaybackState(null, false, true)
     }
   }
 
@@ -1243,27 +1247,27 @@ Item {
 
   function soloistTargetSelected() {
     var target = chooseDevice()
-    return target ? target.name === soloistClient.deviceName
-      : settings.preferredDeviceName === soloistClient.deviceName
+    return target ? target.name === localPlaybackClient.deviceName
+      : settings.preferredDeviceName === localPlaybackClient.deviceName
   }
   function applySoloistState() {
     if (!usingSoloist) return
     var target = chooseDevice()
-    applyPlaybackState(Api.soloistPlaybackPayload(soloistClient.state,
-      target ? target.id : settings.preferredDeviceId, soloistClient.deviceName))
+    applyPlaybackState(Api.soloistPlaybackPayload(localPlaybackClient.state,
+      target ? target.id : settings.preferredDeviceId, localPlaybackClient.deviceName))
   }
   function sendSoloistControl(method, path, query) {
     if (!usingSoloist) return false
     var args = Api.soloistControlArgs(method, path, query)
     if (!args) return false
-    return soloistClient.send(args, function(ok, error) {
+    return localPlaybackClient.send(args, function(ok, error) {
       if (ok) root.succeed("")
       else root.fail(error)
     })
   }
 
-  function loadPlaybackState(callback, reportError) {
-    if (usingSoloist) {
+  function loadPlaybackState(callback, reportError, forceCloud) {
+    if (usingSoloist && forceCloud !== true) {
       applySoloistState()
       if (typeof callback === "function") callback(true)
       return
@@ -1276,6 +1280,7 @@ Item {
     if (remotePlaybackLoading) return
     var expected = dataSerial
     remotePlaybackLoading = true
+    cloudPlaybackLastAttemptAt = Date.now()
     spotifyApi.request("GET", "/me/player", { additional_types: "episode" }, null,
       function(status, payload, error) {
         root.remotePlaybackLoading = false
@@ -1283,7 +1288,13 @@ Item {
           root.finishRemotePlaybackWaiters(false)
           return
         }
-        if (!error) { if (root.usingSoloist) root.applySoloistState(); else root.applyPlaybackState(payload) }
+        root.cloudPlaybackLastStatus = status
+        if (!error) {
+          root.cloudPlaybackLastSuccessAt = Date.now()
+          // The server's active device wins over a stale local receiver snapshot.
+          if (forceCloud === true || !root.usingSoloist) root.applyPlaybackState(payload)
+          else root.applySoloistState()
+        }
         else if (reportError === true) root.fail(error)
         if (!error && !root.hasMedia) root.loadResumeCandidate()
         root.finishRemotePlaybackWaiters(!error)
@@ -2887,6 +2898,17 @@ Item {
       requests: spotifyApi.diagnostics }) }
     function lyricsStatus(): string { return root.lyricsPluginAvailability }
     function showLyrics(): string { return root.requestLyrics("ipc") }
+    function playbackSyncStatus(): string { return JSON.stringify({
+      localControls: root.usingSoloist,
+      receiverReportedActive: root.localPlaybackClient.state.is_active === true,
+      receiverReportedPlaying: root.localPlaybackClient.state.status === "playing",
+      activeDeviceType: root.remoteDevice ? String(root.remoteDevice.type || "") : "",
+      activeDeviceIsLocal: root.remotePlaybackIsLocal,
+      playing: root.playing,
+      lastCloudAttemptAt: root.cloudPlaybackLastAttemptAt,
+      lastCloudSuccessAt: root.cloudPlaybackLastSuccessAt,
+      lastCloudStatus: root.cloudPlaybackLastStatus }) }
+    function reconcilePlayback(): string { root.loadPlaybackState(null, true, true); return "refreshing" }
     function playbackEngineStatus(): string { return root.usingSoloist ? "soloist-local" : String(root.settings.playbackEngine) }
     function configuredPlayer(): string { return root.shortcutPlayer }
     function togglePlayer(): string { return root.invokePlayerShortcut("toggleConfiguredPlayerShortcut") }
@@ -3010,7 +3032,7 @@ Item {
       function(ok) {
         if (ok) {
           root.loadDevices()
-          root.loadPlaybackState()
+          root.loadPlaybackState(null, false, true)
         }
       })
   }
@@ -3173,7 +3195,7 @@ Item {
     if (externalPlayback) {
       loadPlaybackState(function() {
         root.loadDevices(function() { root.dispatchPendingPlayback(playbackSerial) })
-      })
+      }, false, true)
       return
     }
 
@@ -4175,12 +4197,12 @@ Item {
   Timer {
     id: remotePlaybackTimer
     interval: Api.remotePlaybackPollInterval(root.uiVisible,
-      root.useRemotePlayback, root.hasLocalPlayer)
+      root.useRemotePlayback, root.hasLocalPlayer, root.usingSoloist, root.playing)
     repeat: true
-    running: !root.usingSoloist && Api.remotePlaybackPollShouldRun(root.auth.loggedIn,
+    running: Api.remotePlaybackPollShouldRun(root.auth.loggedIn,
       root.remotePlaybackLoading, root.uiVisible, root.useRemotePlayback,
-      root.playing)
-    onTriggered: root.loadPlaybackState()
+      root.playing, root.usingSoloist, root.externalPlayback)
+    onTriggered: root.loadPlaybackState(null, false, true)
   }
 
   Timer {
@@ -4284,7 +4306,7 @@ Item {
 
   SoloistClient {
     id: soloistClient
-    wanted: root.externalPlayback && root.settings.soloistLocalControl === "On"
+    wanted: root.localPlaybackClient === soloistClient && root.externalPlayback && root.settings.soloistLocalControl === "On"
     onStateReceived: root.applySoloistState()
     onReadyChanged: if (ready) root.applySoloistState()
   }

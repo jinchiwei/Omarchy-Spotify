@@ -25,6 +25,14 @@ ShellRoot {
   }
   Plugin.Service { id: spotifyService }
   Plugin.SoloistClient { id: takeoverProbe }
+  QtObject {
+    id: staleReceiver
+    property bool ready: true
+    property string deviceName: "Omarchy Soloist"
+    property var state: ({is_active:true,status:"paused",type:"playback_state"})
+    property int calls: 0
+    function send(args, callback) { calls++; if(callback)callback(true, "");return true }
+  }
   Plugin.Panel { id: panel; service: spotifyService; width: 1280; height: 800 }
   Plugin.BarWidget { id: widget }
   Timer {
@@ -162,6 +170,31 @@ ShellRoot {
       completePage(200, {devices:[{id:"phone",name:"Phone",is_active:true,volume_percent:50,supports_volume:true}]})
       if (!pageRequests.some(function(xhr) { return xhr.url.indexOf("/me/player/play?device_id=phone") >= 0 }))
         throw new Error("Catalog playback did not target the active phone")
+      spotifyService.api.cancelAll()
+      pageRequests = []
+      spotifyService.localPlaybackClient = staleReceiver
+      spotifyService.applySettings({playbackEngine:"Spotify Connect",soloistLocalControl:"On",preferredDeviceName:"Omarchy Soloist"})
+      spotifyService.selectedDeviceExplicit = false
+      spotifyService.selectedDeviceId = "laptop"
+      spotifyService.devices = [{id:"laptop",name:"Omarchy Soloist",active:true}, {id:"phone",name:"Phone",active:false}]
+      var laptopPayload = {device:{id:"laptop",name:"Omarchy Soloist",type:"Computer",is_active:true,volume_percent:50,supports_volume:true},item:freshTrack,is_playing:false,progress_ms:0}
+      spotifyService.applyPlaybackState(laptopPayload)
+      if (!spotifyService.usingSoloist) throw new Error("Stale active receiver fixture did not select local controls")
+      spotifyService.loadPlaybackState(null, false, true)
+      if (pageRequests.length !== 1 || pageRequests[0].url.indexOf("/me/player?") < 0)
+        throw new Error("Stale active Soloist receiver prevented authoritative cloud refresh")
+      completePage(200, {device:{id:"phone",name:"Phone",type:"Smartphone",is_active:true,volume_percent:50,supports_volume:true},item:freshTrack,is_playing:true,progress_ms:0})
+      if (spotifyService.usingSoloist || !spotifyService.useRemotePlayback || !spotifyService.playing)
+        throw new Error("Cloud phone playback did not override the stale local active flag")
+      spotifyService.applySoloistState()
+      if (spotifyService.remoteDevice.id !== "phone") throw new Error("Stale local event overwrote the active phone")
+      spotifyService.loadPlaybackState(null, false, true)
+      laptopPayload.is_playing = true
+      completePage(200, laptopPayload)
+      if (!spotifyService.usingSoloist) throw new Error("Local controls did not recover after laptop takeover")
+      var requestsBeforeLocalControl = pageRequests.length
+      if (!spotifyService.sendSoloistControl("PUT", "/me/player/pause", {}) || staleReceiver.calls !== 1 || pageRequests.length !== requestsBeforeLocalControl)
+        throw new Error("Local playback control lost its fast path")
       spotifyService.api.cancelAll()
       console.log("APP_SMOKE_PASS")
       Qt.quit()

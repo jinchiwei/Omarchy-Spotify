@@ -320,6 +320,18 @@ omarchy shell quickshell.spotify.player playbackEngineStatus
 `soloist-local` means transport and live state are local. The profile header uses
 the signed-in account's display name and avatar; profile data is never hardcoded.
 
+The receiver can retain `is_active: true` after suspend even when a phone has
+taken over. The player verifies Spotify's server-side device state on opening
+and periodically: every 15 seconds while the local receiver's player is open,
+or 60 seconds in the background. Remote playback keeps the normal polling
+interval. These checks do not move playback; local buttons still use Soloist's
+fast control path. Catalog playback and device transfers also refresh cloud state.
+
+For safe diagnostics, `omarchy shell quickshell.spotify.player playbackSyncStatus`
+reports source/active-device type and last cloud-check status/times, without
+song names, device identifiers, or credentials. `reconcilePlayback` on the same
+IPC target requests a read-only cloud refresh without restarting the shell.
+
 ### Loading a complete playlist
 
 **Load remaining songs** retrieves the rest sequentially, with a loaded count.

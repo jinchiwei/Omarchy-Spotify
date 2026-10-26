@@ -380,13 +380,17 @@ function idleShutdownShouldRun(daemonRunning, hasMedia, uiVisible, idleMinutes) 
 }
 
 function remotePlaybackPollShouldRun(loggedIn, loading, uiVisible, useRemote,
-    playing) {
+    playing, localReceiver, externalPlayback) {
   if (loggedIn !== true || loading === true) return false
+  // Connect's local active flag can survive suspend after another device takes over.
+  if (externalPlayback === true || localReceiver === true) return true
   if (uiVisible === true) return true
   return useRemote === true && playing === true
 }
 
-function remotePlaybackPollInterval(uiVisible, useRemote, hasLocal) {
+function remotePlaybackPollInterval(uiVisible, useRemote, hasLocal, localReceiver, playing) {
+  if (localReceiver === true) return uiVisible === true ? 15000 : 60000
+  if (uiVisible !== true && playing === false) return 60000
   return uiVisible === true && (useRemote === true || hasLocal !== true)
     ? 5000 : 15000
 }
