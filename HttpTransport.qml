@@ -8,10 +8,17 @@ Item {
   required property string pluginDir
   property bool fallbackActive: false
   property int requestsRunning: 0
+  property double lastRequestAt: 0
+  property var now: function() { return Date.now() }
   property var nativeFactory: function() { return new XMLHttpRequest() }
 
   function recover() { fallbackActive = true; return true }
   function createRequest() {
+    var current=now()
+    // Long pauses include suspend. Avoid touching the old pool on the first
+    // request after wake/idle; no always-running monitor or network probe needed.
+    if (lastRequestAt > 0 && (current-lastRequestAt > 60000 || current < lastRequestAt)) recover()
+    lastRequestAt=current
     if (!fallbackActive) return nativeFactory()
     var xhr = {
       readyState: 0, status: 0, responseText: "", onreadystatechange: null,

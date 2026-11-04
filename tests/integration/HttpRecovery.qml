@@ -4,6 +4,13 @@ import "../.." as Plugin
 ShellRoot {
   id: root
   property int calls: 0
+  property double clock: 1000
+  Plugin.HttpTransport {
+    id: idleTransport
+    pluginDir: "/nonexistent"
+    now: function(){return root.clock}
+    nativeFactory: function(){return {native:true}}
+  }
   property var slow: null
   Plugin.HttpTransport {
     id: transport
@@ -11,6 +18,9 @@ ShellRoot {
     nativeFactory: function() { throw new Error("Native transport should not run after recovery") }
   }
   Component.onCompleted: {
+    if(!idleTransport.createRequest().native) throw new Error("Native default changed")
+    root.clock=62000
+    if(idleTransport.createRequest().native || !idleTransport.fallbackActive) throw new Error("Idle/wake recovery failed")
     transport.recover()
     var xhr=transport.createRequest()
     xhr.open("POST","https://accounts.spotify.com/api/token")

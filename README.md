@@ -396,7 +396,9 @@ reports its detected state; `showLyrics` opens lyrics for the current song.
 Ordinary HTTP requests first use Qt. If a sent request times out or fails at the
 transport layer (HTTP status 0), the player switches its API and OAuth requests
 to isolated Python standard-library HTTP/1.1 workers for the rest of that shell
-session. Each worker gets a fresh connection and DNS lookup, avoiding reuse of a
+session. A gap of more than a minute between requests (including suspend) also
+selects the fallback before the next request touches the old connection pool.
+Each worker gets a fresh connection and DNS lookup, avoiding reuse of a
 stuck engine-wide Qt connection pool. No extra package is required: Python 3 is
 already used by the Spotify Connect helper.
 
