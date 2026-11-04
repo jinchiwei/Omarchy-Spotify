@@ -390,3 +390,35 @@ Lyrics availability uses Omarchy's public widget catalogue and bar placement on
 versions with a self-scoped plugin registry. This avoids prompting to install an
 already enabled Omasing widget. `omarchy shell quickshell.spotify.player lyricsStatus`
 reports its detected state; `showLyrics` opens lyrics for the current song.
+
+### Recovery after sleep or a network change
+
+Ordinary HTTP requests first use Qt. If a sent request times out or fails at the
+transport layer (HTTP status 0), the player switches its API and OAuth requests
+to isolated Python standard-library HTTP/1.1 workers for the rest of that shell
+session. Each worker gets a fresh connection and DNS lookup, avoiding reuse of a
+stuck engine-wide Qt connection pool. No extra package is required: Python 3 is
+already used by the Spotify Connect helper.
+
+Reads and refresh-token exchanges retry at most once; explicit search deadlines
+still apply. One-use authorization codes are not replayed. Playback/library actions that
+might have completed remotely are never replayed automatically. Rate limits,
+401 refresh, cancellation, bounded concurrency and account-switch cleanup remain
+in the shared request layer. Tokens and request bodies go through private stdin,
+not command arguments, files or logs. Helpers accept only Spotify HTTPS API/token
+endpoints and do not follow redirects. Each request is bounded by the request
+watchdog; a cancellation kills its worker. A genuinely offline connection still
+needs to return before playback/library requests can work.
+
+`quickshell.spotify.player requestTimings` reports `transport=qt` or
+`transport=isolated-http` and a worker count, without credentials or song data.
+The standard test script includes transport recovery, mutation non-replay,
+process cancellation, HTTP status/Retry-After preservation and endpoint checks.
+This fix lives in the fork's Git history. Omarchy's normal fast-forward plugin
+updater can retain it without reapplying local patches; review upstream changes
+through the fork rather than switching the update remote to the original repo.
+
+A manual, credential-free recovery command is also available:
+`omarchy-shell quickshell.spotify.player recoverNetwork`. It selects the fallback,
+refreshes the in-memory access token and reads playback status; it does not start,
+pause or transfer playback.

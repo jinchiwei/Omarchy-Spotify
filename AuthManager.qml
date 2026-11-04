@@ -58,10 +58,12 @@ Item {
   property bool callbackHandled: false
   property bool exchangingCode: false
   property var tokenRequest: null
+  property var tokenRecovery: null
   property var xhrFactory: function() { return new XMLHttpRequest() }
   property int tokenRequestSerial: 0
   property bool logoutPendingClear: false
 
+  signal transportFailed()
   signal loginSucceeded()
   signal loggedOut()
   signal sessionUnavailable(string reason)
@@ -177,15 +179,34 @@ Item {
     refreshWithToken(token, purpose)
   }
 
-  function postTokenRequest(body, previousRefreshToken, callback) {
+  function recoverTokenRequest() {
+    transportFailed()
+    var retry = tokenRecovery
+    tokenRecovery = null
+    return typeof retry === "function" && retry()
+  }
+
+  function postTokenRequest(body, previousRefreshToken, callback, transportRetried) {
     var serial = ++tokenRequestSerial
     var identity = resolvedClientId
     var request = xhrFactory()
     tokenRequest = request
+    // Refresh grants can recover once. One-use authorization codes cannot.
+    tokenRecovery = !transportRetried && /(^|&)grant_type=refresh_token(&|$)/.test(body)
+      ? function() {
+          if (serial !== root.tokenRequestSerial || identity !== root.resolvedClientId) return false
+          root.tokenRequestSerial++
+          if (root.tokenRequest === request) root.tokenRequest = null
+          if (request.abort) request.abort()
+          root.postTokenRequest(body, previousRefreshToken, callback, true)
+          return true
+        } : null
     request.onreadystatechange = function() {
       if (request.readyState !== XMLHttpRequest.DONE) return
       if (serial !== root.tokenRequestSerial || identity !== root.resolvedClientId) return
       tokenTimeout.stop()
+      if (request.status === 0 && root.recoverTokenRequest()) return
+      root.tokenRecovery = null
       if (root.tokenRequest === request) root.tokenRequest = null
       var result = OAuth.parseTokenResponse(request.status, request.responseText,
         previousRefreshToken)
@@ -380,6 +401,7 @@ Item {
     if (callbackListener.running) callbackListener.running = false
     if (pkceGenerator.running) pkceGenerator.running = false
     tokenRequestSerial++
+    tokenRecovery = null
     if (tokenRequest && tokenRequest.abort) tokenRequest.abort()
     tokenRequest = null
     refreshBusy = false
@@ -406,6 +428,7 @@ Item {
     id: tokenTimeout
     interval: 15000
     onTriggered: {
+      if (root.recoverTokenRequest()) return
       root.cancelLogin()
       root.lastError = "Spotify authorization took too long. Try again."
       root.finishWaiters("", root.lastError)

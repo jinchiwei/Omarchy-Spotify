@@ -1,3 +1,11 @@
+## Unreleased — network recovery
+
+- Recover from repeated Qt transport stalls after sleep/network changes using
+  isolated HTTP workers; share fallback with OAuth token refresh.
+- Retry reads once, preserve search deadlines/rate limits, and never replay
+  uncertain writes. Keep credentials off command arguments and logs.
+- Add offline regression and process-lifecycle coverage plus transport diagnostics.
+
 # Changelog
 
 ## 1.0.4 (unreleased)

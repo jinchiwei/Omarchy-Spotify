@@ -28,6 +28,7 @@ Item {
   property var timedJobs: []
   property var diagnostics: []
   property int activeTimeoutMs: 15000
+  property var recoverTransport: null
   property var xhrFactory: function() { return new XMLHttpRequest() }
   property var now: function() { return Date.now() }
 
@@ -87,6 +88,21 @@ Item {
     deliverJob(job, status, payload, error, xhr)
   }
 
+  function recoverFailedRequest(job, xhr) {
+    if (!job.sentAt || !xhr || typeof recoverTransport !== "function") return false
+    var available = recoverTransport()
+    // Mutations may already have happened remotely. Only reads can be replayed.
+    if (!available || String(job.method || "GET") !== "GET" || job.transportRetried
+        || (job.deadlineAt && now() >= job.deadlineAt)) return false
+    job.transportRetried = true
+    job.activeDeadlineAt = 0
+    job.handle.xhr = null
+    abortXhr(xhr)
+    requestQueue = Api.enqueueApiJob(requestQueue, job)
+    releaseRequestSlot(job.handle)
+    return true
+  }
+
   function expireTimedOutRequests(timestamp) {
     var current = Number(timestamp)
     if (!isFinite(current)) current = now()
@@ -98,6 +114,7 @@ Item {
       if (!deadline || current < deadline) continue
       var handle = job.handle
       var xhr = handle ? handle.xhr : null
+      if (recoverFailedRequest(job, xhr)) continue
       var cooldownMs = Api.apiCooldownMs(current, rateLimitedUntil)
       var waitingForCooldown = cooldownMs > 0 && requestQueue.indexOf(job) >= 0
       var error = waitingForCooldown
@@ -187,6 +204,7 @@ Item {
   function startJob(job) {
     var handle = job.handle
     job.startedAt = now()
+    job.sentAt = 0
     job.activeDeadlineAt = job.startedAt + activeTimeoutMs
     var url = Api.safeApiUrl(job.path)
     if (!url) {
@@ -214,6 +232,7 @@ Item {
           if (xhr.readyState !== XMLHttpRequest.DONE || handle.xhr !== xhr) return
           handle.xhr = null
           if (handle.aborted || job.finished === true) return
+          if (xhr.status === 0 && recoverFailedRequest(job, xhr)) return
           var payload = Api.parseJson(xhr.responseText, null)
           if (xhr.status === 401 && job.retried !== true) {
             auth.invalidateAccessToken()

@@ -2893,6 +2893,8 @@ Item {
       clientId: authManager.resolvedClientId,
       loaded: { likedSongs: root.savedTracks.length, playlists: root.playlists.length,
         profile: !!root.currentUserId },
+      transport: httpTransport.fallbackActive ? "isolated-http" : "qt",
+      transportRequests: httpTransport.requestsRunning,
       queued: spotifyApi.requestQueue.length, inFlight: spotifyApi.requestsInFlight,
       cooldownMs: Math.max(0, spotifyApi.rateLimitedUntil - Date.now()),
       requests: spotifyApi.diagnostics }) }
@@ -2908,6 +2910,12 @@ Item {
       lastCloudAttemptAt: root.cloudPlaybackLastAttemptAt,
       lastCloudSuccessAt: root.cloudPlaybackLastSuccessAt,
       lastCloudStatus: root.cloudPlaybackLastStatus }) }
+    function recoverNetwork(): string {
+      httpTransport.recover()
+      authManager.invalidateAccessToken()
+      root.loadPlaybackState(null, true, true)
+      return "refreshing-with-isolated-http"
+    }
     function reconcilePlayback(): string { root.loadPlaybackState(null, true, true); return "refreshing" }
     function playbackEngineStatus(): string { return root.usingSoloist ? "soloist-local" : String(root.settings.playbackEngine) }
     function configuredPlayer(): string { return root.shortcutPlayer }
@@ -4311,14 +4319,23 @@ Item {
     onReadyChanged: if (ready) root.applySoloistState()
   }
 
+  HttpTransport {
+    id: httpTransport
+    pluginDir: root.pluginDir
+  }
+
   AuthManager {
     id: authManager
+    xhrFactory: function() { return httpTransport.createRequest() }
+    onTransportFailed: httpTransport.recover()
     pluginDir: root.pluginDir
     customClientId: settings.clientId
   }
 
   AuthManager {
     id: connectAuthManager
+    xhrFactory: function() { return httpTransport.createRequest() }
+    onTransportFailed: httpTransport.recover()
     pluginDir: root.pluginDir
     clientId: "65b708073fc0480ea92a077233ca87bd"
     oauthPort: 8990
@@ -4328,6 +4345,8 @@ Item {
   SpotifyApi {
     id: spotifyApi
     auth: authManager
+    xhrFactory: function() { return httpTransport.createRequest() }
+    recoverTransport: function() { return httpTransport.recover() }
   }
 
   SpotifyConnectManager {

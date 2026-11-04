@@ -17,6 +17,8 @@ TestCase {
   property bool failFactory: false
   property bool failOpen: false
   property bool failSend: false
+  property int recoveries: 0
+  property bool recoveryEnabled: false
 
   QtObject {
     id: fakeAuth
@@ -33,6 +35,7 @@ TestCase {
     Plugin.SpotifyApi {
       auth: fakeAuth
       now: function() { return testCase.clock }
+      recoverTransport: function() { testCase.recoveries++; return testCase.recoveryEnabled }
       xhrFactory: function() {
         if (testCase.failFactory) throw new Error("factory failed")
         return testCase.newRequest()
@@ -87,6 +90,41 @@ TestCase {
     failSend = false
   }
 
+  function test_timedOutReadRecoversOnceWithoutDuplicatingCallback() {
+    recoveryEnabled = true; recoveries = 0
+    var api = createTemporaryObject(apiComponent, testCase)
+    var calls = 0; var status = 0
+    api.request("GET", "/me", null, null, function(s) { calls++; status=s })
+    clock = 16000; api.expireTimedOutRequests(clock)
+    compare(recoveries, 1); compare(requests.length, 2)
+    verify(requests[0].aborted); compare(calls,0)
+    complete(requests[0],200); compare(calls,0)
+    complete(requests[1],200); compare(calls,1); compare(status,200)
+    compare(api.requestsInFlight,0); compare(api.timedJobs.length,0)
+    recoveryEnabled=false
+  }
+  function test_mutationTimeoutSwitchesTransportButNeverReplays() {
+    recoveryEnabled=true; recoveries=0
+    var api=createTemporaryObject(apiComponent,testCase); var error=""
+    api.request("POST","/me/player/queue",null,null,function(s,p,e){error=e})
+    clock=16000;api.expireTimedOutRequests(clock)
+    compare(recoveries,1);compare(requests.length,1)
+    verify(error.indexOf("did not confirm")>=0)
+    recoveryEnabled=false
+  }
+  function test_recoveryIsBoundedAndCancellationStopsRetry() {
+    recoveryEnabled=true;recoveries=0
+    var api=createTemporaryObject(apiComponent,testCase);var calls=0
+    var handle=api.request("GET","/me",null,null,function(){calls++})
+    complete(requests[0],0);compare(requests.length,2)
+    api.abortRequest(handle);complete(requests[1],200)
+    compare(calls,0);compare(api.requestsInFlight,0)
+    var before=requests.length
+    api.request("GET","/me",null,null,function(){calls++})
+    complete(requests[before],0);complete(requests[before+1],0)
+    compare(requests.length,before+2);compare(calls,1)
+    recoveryEnabled=false
+  }
   function test_priorityStartsMutationsThenInteractiveReads() {
     var api = createTemporaryObject(apiComponent, testCase)
     verify(api)
