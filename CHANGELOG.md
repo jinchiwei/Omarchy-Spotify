@@ -1,3 +1,12 @@
+## Unreleased — lower background API usage
+
+- Use Soloist local events for live playback with slower cloud reconciliation;
+  refresh on reopen and local deactivation to retain phone takeover discovery.
+- Cache idle Resume history for 30 minutes including empty responses, share Home
+  history responses, and bound transient/quota-failure retries.
+- Reduce normal remote polling and empty background checks; keep user controls
+  and explicit refreshes immediate.
+
 ## Unreleased — quota handling
 
 - Back off repeated reads after Spotify returns QUOTA_EXCEEDED, while allowing

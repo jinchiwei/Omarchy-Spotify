@@ -1128,9 +1128,19 @@ TestCase {
     verify(!Api.remotePlaybackPollShouldRun(true, false, false, false, true))
     verify(!Api.remotePlaybackPollShouldRun(true, true, true, true, true))
     verify(!Api.remotePlaybackPollShouldRun(false, false, true, true, true))
-    compare(Api.remotePlaybackPollInterval(true, true, false), 5000)
-    compare(Api.remotePlaybackPollInterval(true, false, true), 15000)
-    compare(Api.remotePlaybackPollInterval(false, true, false), 15000)
+    compare(Api.remotePlaybackPollInterval(true, true, false), 30000)
+    compare(Api.remotePlaybackPollInterval(true, false, true), 30000)
+    compare(Api.remotePlaybackPollInterval(false, true, false), 60000)
+  }
+
+  function test_cloudReconciliationUsesLocalEventsAndSlowIdleFallback() {
+    // Local events supply song/progress changes; cloud checks only catch missed takeovers.
+    compare(Api.remotePlaybackPollInterval(true, false, true, true, true), 120000)
+    compare(Api.remotePlaybackPollInterval(false, false, true, true, true), 300000)
+    compare(Api.remotePlaybackPollInterval(false, true, false, false, true), 60000)
+    compare(Api.remotePlaybackPollInterval(false, false, false, false, false), 300000)
+    compare(Api.remotePlaybackPollInterval(true, false, false, false, false), 60000)
+    verify(Api.remotePlaybackPollShouldRun(true, false, false, false, false, true, true))
   }
 
   function test_normalizedShortcutPlayer_mapsLegacyDefault() {

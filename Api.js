@@ -389,10 +389,11 @@ function remotePlaybackPollShouldRun(loggedIn, loading, uiVisible, useRemote,
 }
 
 function remotePlaybackPollInterval(uiVisible, useRemote, hasLocal, localReceiver, playing) {
-  if (localReceiver === true) return uiVisible === true ? 15000 : 60000
-  if (uiVisible !== true && playing === false) return 60000
-  return uiVisible === true && (useRemote === true || hasLocal !== true)
-    ? 5000 : 15000
+  // Local Soloist events already supply playback/progress. Retain a slow cloud
+  // safety check because a stale active flag can survive sleep or device takeover.
+  if (localReceiver === true) return uiVisible === true ? 120000 : 300000
+  if (playing === false) return uiVisible === true ? 60000 : 300000
+  return uiVisible === true ? 30000 : 60000
 }
 
 function normalizedShortcutPlayer(value) {

@@ -109,6 +109,23 @@ ShellRoot {
         throw new Error("Liked Songs waited behind background library requests")
       spotifyService.api.cancelAll()
       pageRequests = []
+      // Resume history is cached even for an empty successful response. A
+      // transient failure is retried later, not on every playback reconciliation.
+      spotifyService.resumeCandidateLoadedAt = 0
+      spotifyService.loadResumeCandidate()
+      if (pageRequests.length !== 1) throw new Error("Initial resume history not requested")
+      completePage(200, {items:[]})
+      spotifyService.resumeCandidateLoadedAt = Date.now() - 60000
+      spotifyService.loadResumeCandidate()
+      if (pageRequests.length !== 1) throw new Error("Resume history cache expired after only a minute")
+      spotifyService.resumeCandidateLoadedAt = Date.now() - 31 * 60000
+      spotifyService.loadResumeCandidate()
+      if (pageRequests.length !== 2) throw new Error("Expired history did not refresh")
+      completePage(500, {error:{message:"Temporary failure"}})
+      spotifyService.loadResumeCandidate()
+      if (pageRequests.length !== 2) throw new Error("Transient failure retried immediately")
+      spotifyService.api.cancelAll()
+      pageRequests = []
       spotifyService.currentUserId = ""
       spotifyService.loadProfile()
       spotifyService.loadProfile()

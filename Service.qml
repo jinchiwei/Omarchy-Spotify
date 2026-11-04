@@ -377,6 +377,7 @@ Item {
   property var resumeCandidate: null
   property bool resumeCandidateLoading: false
   property real resumeCandidateLoadedAt: 0
+  property double resumeCandidateRetryAt: 0
   readonly property bool canResumeLastPlayed: Api.resumePlaybackAvailable(
     hasMedia, resumeCandidate)
   readonly property var lastPlayedItem: canResumeLastPlayed
@@ -2518,6 +2519,11 @@ Item {
             return Api.normalizeTrack(value, 96)
           })
           root.recentTracks = page.items
+          // Reuse the same history response instead of fetching it again just
+          // to provide an idle player's Resume button.
+          root.resumeCandidate = Api.resumeCandidateFromRecentlyPlayed(payload, 192)
+          root.resumeCandidateLoadedAt = Date.now()
+          root.resumeCandidateRetryAt = 0
         }
         root.finishHomeRequest(error)
       })
@@ -2897,6 +2903,9 @@ Item {
       transportRequests: httpTransport.requestsRunning,
       queued: spotifyApi.requestQueue.length, inFlight: spotifyApi.requestsInFlight,
       cooldownMs: Math.max(0, spotifyApi.rateLimitedUntil - Date.now()),
+      cloudPollIntervalMs: remotePlaybackTimer.interval,
+      cloudPollRunning: remotePlaybackTimer.running,
+      resumeHistoryFresh: Api.timestampIsFresh(resumeCandidateLoadedAt, Date.now(), 30 * 60000),
       requests: spotifyApi.diagnostics }) }
     function lyricsStatus(): string { return root.lyricsPluginAvailability }
     function showLyrics(): string { return root.requestLyrics("ipc") }
@@ -3452,18 +3461,26 @@ Item {
   function loadResumeCandidate(force) {
     if (resumeCandidateLoading) return
     if (!authManager.loggedIn && !authManager.tokenIsFresh()) return
-    if (force !== true && resumeCandidateLoadedAt > 0
-        && Date.now() - resumeCandidateLoadedAt < 30000) return
+    if (Date.now() < resumeCandidateRetryAt) return
+    if (force !== true && Api.timestampIsFresh(resumeCandidateLoadedAt,
+        Date.now(), 30 * 60000)) return
     var expected = dataSerial
     resumeCandidateLoading = true
-    resumeCandidateLoadedAt = Date.now()
+    // Bound transient failures too; only successful history counts as cached.
+    resumeCandidateRetryAt = Date.now() + 60000
     spotifyApi.request("GET", "/me/player/recently-played", { limit: 5 }, null,
       function(status, payload, error) {
         if (expected !== root.dataSerial) return
         root.resumeCandidateLoading = false
-        if (error) return
+        if (error) {
+          if (status === 429 && payload && payload.error
+              && payload.error.reason === "QUOTA_EXCEEDED")
+            root.resumeCandidateRetryAt = Date.now() + 15 * 60000
+          return
+        }
         root.resumeCandidate = Api.resumeCandidateFromRecentlyPlayed(payload, 192)
         root.resumeCandidateLoadedAt = Date.now()
+        root.resumeCandidateRetryAt = 0
       })
   }
 
@@ -3780,6 +3797,7 @@ Item {
     clearPendingPlayback()
     resumeCandidate = null
     resumeCandidateLoadedAt = 0
+    resumeCandidateRetryAt = 0
     radioContextSelected = false
     playlists = []
     playlistsLoaded = false
@@ -3921,6 +3939,9 @@ Item {
     if (!uiVisible) playlistLoadAll = false
     if (uiVisible) {
       ensureVisibleLocalReceiver()
+      // Reconcile phone playback on reopen, but deduplicate rapid surface toggles.
+      if (authManager.loggedIn && !Api.timestampIsFresh(cloudPlaybackLastAttemptAt,
+          Date.now(), 30000)) loadPlaybackState(null, false, true)
       // Reopening a surface must respect the existing five-minute status cache.
       syncCurrentTrackSaved(false)
       updateSleepCountdown()

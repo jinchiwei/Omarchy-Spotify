@@ -332,9 +332,16 @@ the signed-in account's display name and avatar; profile data is never hardcoded
 
 The receiver can retain `is_active: true` after suspend even when a phone has
 taken over. The player verifies Spotify's server-side device state on opening
-and periodically: every 15 seconds while the local receiver's player is open,
-or 60 seconds in the background. Remote playback keeps the normal polling
-interval. These checks do not move playback; local buttons still use Soloist's
+and periodically: every 2 minutes while the local receiver's player is open,
+or 5 minutes in the background. Local state/progress continues arriving through
+Soloist's event stream; an inactive local receiver immediately prompts a cloud
+check. Reopening refreshes cloud state unless checked in the last 30 seconds.
+Remote playback is checked every 30 seconds while visible or 60 seconds hidden;
+an empty/idle nonlocal player checks every minute visible or 5 minutes hidden.
+A phone takeover with no local notification can take until the next safety poll.
+Idle Resume history is cached for 30 minutes (including empty results), reuses
+successful Home history responses, and backs off transient failures for a minute
+or quota failures for at least 15 minutes. These checks do not move playback; local buttons still use Soloist's
 fast control path. Catalog playback and device transfers also refresh cloud state.
 
 For safe diagnostics, `omarchy shell quickshell.spotify.player playbackSyncStatus`
