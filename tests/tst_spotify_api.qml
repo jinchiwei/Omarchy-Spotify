@@ -553,4 +553,43 @@ TestCase {
     compare(api.diagnostics[0].route, "/search")
     verify(JSON.stringify(api.diagnostics).indexOf("private-query") < 0)
   }
+  function test_quotaBlocksRepeatedReadsButNotOtherEndpoints() {
+    var api = createTemporaryObject(apiComponent, testCase)
+    var callbacks = 0
+    api.request("GET", "/me/player/recently-played", {limit: 5}, null, function() {})
+    requests[0].retryAfter = ""
+    complete(requests[0], 429, '{"error":{"reason":"QUOTA_EXCEEDED"}}')
+    clock += 30000
+    api.request("GET", "/me/player/recently-played", {limit: 30}, null,
+      function(status, payload, error) {
+        callbacks++; compare(status, 429)
+        compare(payload.error.reason, "QUOTA_EXCEEDED")
+        verify(error.indexOf("Spotify") >= 0)
+      })
+    compare(callbacks, 1)
+    compare(requests.length, 1)
+    api.request("GET", "/me/playlists", null, null, function() {})
+    compare(requests.length, 2)
+    complete(requests[1], 200)
+    clock += 15 * 60 * 1000
+    api.request("GET", "/me/player/recently-played", null, null, function() {})
+    compare(requests.length, 3)
+    complete(requests[2], 200)
+    api.request("GET", "/me/player/recently-played", null, null, function() {})
+    compare(requests.length, 4)
+  }
+
+  function test_quotaHonorsLongRetryAfterAndClearsForAccountChange() {
+    var api = createTemporaryObject(apiComponent, testCase)
+    api.request("GET", "/me", null, null, function() {})
+    requests[0].retryAfter = "7200"
+    complete(requests[0], 429, '{"error":{"reason":"QUOTA_EXCEEDED"}}')
+    clock += 3600000
+    api.request("GET", "/me", null, null, function() {})
+    compare(requests.length, 1)
+    api.cancelAll()
+    api.request("GET", "/me", null, null, function() {})
+    compare(requests.length, 2)
+  }
+
 }

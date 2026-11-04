@@ -153,6 +153,16 @@ the same developer account share a quota; creating more Client IDs does not incr
 that budget. Respect Retry-After, reuse loaded pages, and avoid unnecessary refreshes.
 A personal app does not provide unlimited requests or restore restricted endpoints.
 
+`QUOTA_EXCEEDED` is distinct from ordinary short-term throttling. Spotify groups
+endpoints into unpublished quota buckets, so playlists or playback may still work
+while history/search fails. Rejected reads are suppressed for 15 minutes (or a
+longer numeric Retry-After), then the next normal request can probe again. This is
+a conservative client retry policy, **not** a claimed Spotify reset time. Query
+variations share the same endpoint suppression; unrelated endpoints keep working.
+Successful reads and account changes clear the corresponding suppression. No
+writes are automatically replayed. Diagnostics mark suppressed reads as
+`quota-backoff` and include the machine error reason without query/account data.
+
 1. Add `http://127.0.0.1:8989/login` as the app's redirect URI.
 2. Set **Spotify Developer app client ID** in the plugin settings and click **Apply app**.
    Blank or malformed IDs produce an error; there is no shared fallback.

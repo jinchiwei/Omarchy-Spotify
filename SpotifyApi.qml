@@ -22,6 +22,9 @@ Item {
   property int requestsInFlight: 0
   property double rateLimitedUntil: 0
   property bool restrictInFlight: false
+  // Endpoint buckets are undocumented: suppress only reads actually rejected.
+  // This is our retry policy, not an estimate of Spotify's quota reset time.
+  property var quotaBlockedReads: ({})
   property bool pumpingRequests: false
   property bool cancellingAll: false
   property bool pumpAgain: false
@@ -76,7 +79,9 @@ Item {
       tokenMs: job.sentAt ? Math.max(0, job.sentAt - job.startedAt) : 0,
       httpMs: job.sentAt ? Math.max(0, now() - job.sentAt) : 0,
       retries: job.rateLimitRetries + (job.retried ? 1 : 0),
-      outcome: error ? (status ? "http-error" : "transport-error") : "success"
+      errorReason: payload && payload.error ? String(payload.error.reason || "") : "",
+      outcome: job.quotaBackoff ? "quota-backoff"
+        : error ? (status ? "http-error" : "transport-error") : "success"
     }
     diagnostics = diagnostics.concat([entry]).slice(-100)
     releaseRequestSlot(job.handle)
@@ -155,7 +160,7 @@ Item {
 
   function requestError(status, payload, xhr, fallback) {
     if (status === 429 && quotaExceeded(payload))
-      return "This Spotify app has exhausted its developer quota. Check the app configuration or use another authorized client."
+      return "Spotify's developer quota for this feature is exhausted. Other features may still work; Spotify does not provide a reset time."
     if (status === 429)
       return Api.rateLimitMessage(Api.responseRetryAfter(xhr))
     return Api.responseError(status, payload, fallback)
@@ -211,6 +216,14 @@ Item {
       finishJob(job, 0, null, "Something went wrong while contacting Spotify", null)
       return
     }
+    var quotaKey = String(job.method || "GET").toUpperCase() + " " + url.split("?")[0]
+    var blocked = quotaBlockedReads[quotaKey]
+    if (blocked && blocked.until > now()) {
+      job.quotaBackoff = true
+      var quotaPayload = {error: {status: 429, reason: "QUOTA_EXCEEDED"}}
+      finishJob(job, 429, quotaPayload, requestError(429, quotaPayload, null, ""), null)
+      return
+    }
     url = Api.appendQuery(url, job.query)
 
     auth.withAccessToken(function(token, tokenError) {
@@ -241,6 +254,16 @@ Item {
             requestQueue = Api.enqueueApiJob(requestQueue, job)
             releaseRequestSlot(handle)
             return
+          }
+          if (String(job.method || "GET").toUpperCase() === "GET") {
+            if (xhr.status === 429 && quotaExceeded(payload)) {
+              var retrySeconds = Number(Api.responseRetryAfter(xhr))
+              var retryMs = isFinite(retrySeconds) && retrySeconds > 0
+                ? retrySeconds * 1000 + 400 : 0
+              quotaBlockedReads[quotaKey] = {until: now() + Math.max(900000, retryMs)}
+            } else if (xhr.status >= 200 && xhr.status < 300) {
+              delete quotaBlockedReads[quotaKey]
+            }
           }
           if (xhr.status === 429 && !quotaExceeded(payload)) {
             restrictInFlight = true
@@ -313,6 +336,7 @@ Item {
   }
 
   function cancelAll() {
+    quotaBlockedReads = ({})
     cancellingAll = true
     var jobs = timedJobs.slice()
     for (var i = 0; i < jobs.length; i++) abortRequest(jobs[i].handle)

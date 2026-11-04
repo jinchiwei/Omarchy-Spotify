@@ -1,3 +1,11 @@
+## Unreleased — quota handling
+
+- Back off repeated reads after Spotify returns QUOTA_EXCEEDED, while allowing
+  unrelated features to keep working. Honor longer Retry-After values and clear
+  endpoint suppression after success or account changes.
+- Explain that feature quotas can differ and no reset time is published; preserve
+  ordinary rate-limit handling and expose sanitized quota/backoff diagnostics.
+
 ## Unreleased — network recovery
 
 - Recover from repeated Qt transport stalls after sleep/network changes using
